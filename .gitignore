@@ -13,6 +13,7 @@ Thumbs.db
 
 # OpenCode 配置
 .opencode/
+.omo/
 
 # Node.js
 node_modules/

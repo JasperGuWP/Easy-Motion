@@ -100,7 +100,7 @@ interface IPCResponse<T = unknown> {
 }
 
 interface IPCError {
-  code: string;           // 错误码，如 "E2015"
+  code: string;           // 错误码，如 "E2101"
   message: string;        // 用户友好的错误描述
   details?: unknown;      // 调试信息（开发模式显示）
 }
@@ -128,7 +128,7 @@ interface IPCError {
   "channel": "main:project:create",
   "success": false,
   "error": {
-    "code": "E2015",
+    "code": "E2101",
     "message": "项目目录已存在同名文件夹",
     "details": "路径 /Users/qiuku/Projects/Demo 已存在"
   },
@@ -188,49 +188,49 @@ interface IPCNotification<T = unknown> {
   }
   ```
 - **响应数据**：`{ projectId: string; path: string; createdAt: number }`
-- **错误码**：`E2015`（目录已存在）、`E2016`（磁盘空间不足）、`E2017`（路径非法）
+- **错误码**：`E2101`（目录已存在）、`E2005`（磁盘空间不足）、`E2103`（名称非法）
 - **超时**：10 秒
 
 #### `main:project:open`
 - **说明**：打开已有项目
 - **请求参数**：`{ projectId: string }`
 - **响应数据**：`{ project: Project; subprojects: SubprojectSummary[] }`
-- **错误码**：`E2018`（项目不存在）、`E2019`（项目文件损坏）
+- **错误码**：`E2104`（项目不存在）、`E2115`（项目文件损坏）
 - **超时**：5 秒
 
 #### `main:project:delete`
 - **说明**：删除项目（软删除）
 - **请求参数**：`{ projectId: string; force?: boolean }` // force=true 彻底删除
 - **响应数据**：`{ deleted: boolean }`
-- **错误码**：`E2018`（项目不存在）
+- **错误码**：`E2104`（项目不存在）
 - **超时**：10 秒
 
 #### `main:project:rename`
 - **说明**：重命名项目
 - **请求参数**：`{ projectId: string; newName: string }`
 - **响应数据**：`{ projectId: string; newName: string }`
-- **错误码**：`E2017`（名称非法）、`E2020`（名称重复）
+- **错误码**：`E2103`（名称非法）、`E2113`（名称重复）
 - **超时**：5 秒
 
 #### `main:subproject:create`
 - **说明**：在当前项目中新建子项目
 - **请求参数**：`{ projectId: string; name: string; template?: string }`
 - **响应数据**：`{ subprojectId: string; name: string; createdAt: number }`
-- **错误码**：`E2021`（超出子项目数量限制，暂定为 50 个）
+- **错误码**：`E2111`（子项目创建失败，超出数量限制）
 - **超时**：5 秒
 
 #### `main:subproject:delete`
 - **说明**：删除子项目
 - **请求参数**：`{ projectId: string; subprojectId: string }`
 - **响应数据**：`{ deleted: boolean }`
-- **错误码**：`E2022`（子项目不存在）
+- **错误码**：`E2112`（子项目不存在）
 - **超时**：5 秒
 
 #### `main:subproject:duplicate`
 - **说明**：复制子项目
 - **请求参数**：`{ projectId: string; subprojectId: string; newName?: string }`
 - **响应数据**：`{ newSubprojectId: string }`
-- **错误码**：`E2021`（超出限制）
+- **错误码**：`E2111`（超出限制）
 - **超时**：10 秒
 
 ---
@@ -241,14 +241,14 @@ interface IPCNotification<T = unknown> {
 - **说明**：加载子项目时间线
 - **请求参数**：`{ subprojectId: string }`
 - **响应数据**：`Timeline`（见 时间线编辑.md）
-- **错误码**：`E2040`（时间线文件不存在）、`E2041`（时间线格式错误）
+- **错误码**：`E2411`（时间线快照不存在）、`E2400`（时间线数据无效）
 - **超时**：3 秒
 
 #### `main:timeline:save`
 - **说明**：保存时间线到 `subproject.json`
 - **请求参数**：`{ subprojectId: string; timeline: Timeline }`
 - **响应数据**：`{ saved: boolean; timestamp: number }`
-- **错误码**：`E2042`（写入失败）、`E2043`（时间线校验失败）
+- **错误码**：`E2204`（文件写入失败）、`E2400`（时间线数据无效）
 - **超时**：10 秒
 - **并发控制**：写入队列，同一时刻只有一个写操作在执行（见 技术规格.md）
 
@@ -256,7 +256,7 @@ interface IPCNotification<T = unknown> {
 - **说明**：创建时间线快照
 - **请求参数**：`{ subprojectId: string; label?: string }`
 - **响应数据**：`{ snapshotId: string; timestamp: number }`
-- **错误码**：`E2044`（快照创建失败）
+- **错误码**：`E2411`（快照创建/恢复失败）
 - **超时**：5 秒
 
 #### `main:timeline:snapshot:list`
@@ -269,7 +269,7 @@ interface IPCNotification<T = unknown> {
 - **说明**：恢复到指定快照
 - **请求参数**：`{ subprojectId: string; snapshotId: string }`
 - **响应数据**：`{ restored: boolean; timeline: Timeline }`
-- **错误码**：`E2045`（快照不存在或损坏）
+- **错误码**：`E2411`（快照不存在或损坏）
 - **超时**：5 秒
 
 ---
@@ -290,7 +290,7 @@ interface IPCNotification<T = unknown> {
   }
   ```
 - **响应数据**：`{ imported: Asset[]; failed: { path: string; reason: string }[] }`
-- **错误码**：`E2030`（文件不存在）、`E2031`（不支持的格式）、`E2032`（磁盘空间不足）
+- **错误码**：`E2205`（文件不存在）、`E2301`（不支持的素材类型）、`E2005`（磁盘空间不足）
 - **超时**：60 秒（大文件导入可能耗时较长）
 - **并发控制**：素材导入支持并行，但单文件最大 500MB
 
@@ -305,14 +305,14 @@ interface IPCNotification<T = unknown> {
 - **说明**：删除素材
 - **请求参数**：`{ projectId: string; assetId: string; deleteFile?: boolean }`
 - **响应数据**：`{ deleted: boolean }`
-- **错误码**：`E2033`（素材不存在）、`E2034`（素材被占用，无法删除）`
+- **错误码**：`E2303`（素材不存在）、`E2304`（素材删除失败，被引用中）
 - **超时**：5 秒
 
 #### `main:asset:thumbnail`
 - **说明**：获取素材缩略图（如尚未生成则异步生成）
 - **请求参数**：`{ assetId: string; width?: number; height?: number }`
 - **响应数据**：`{ thumbnailPath: string }`（base64 或文件路径）
-- **错误码**：`E2035`（缩略图生成失败）
+- **错误码**：`E2208`（缩略图生成失败）
 - **超时**：10 秒
 
 ---
@@ -336,7 +336,7 @@ interface IPCNotification<T = unknown> {
 - **说明**：强制刷新 iframe（Generator 代码更新后）
 - **请求参数**：`{ subprojectId: string }`
 - **响应数据**：`{ reloaded: boolean }`
-- **错误码**：`E2050`（iframe 加载失败）
+- **错误码**：`E2501`（iframe 渲染进程崩溃）
 - **超时**：10 秒
 
 ---
@@ -356,14 +356,14 @@ interface IPCNotification<T = unknown> {
   }
   ```
 - **响应数据**：`{ exportId: string }`
-- **错误码**：`E2060`（导出参数无效）、`E2061`（输出路径无写入权限）
+- **错误码**：`E2604`（导出格式无效）、`E2605`（输出路径无写入权限）
 - **超时**：5 秒（仅启动，不等待完成）
 
 #### `main:export:cancel`
 - **说明**：取消导出
 - **请求参数**：`{ exportId: string }`
 - **响应数据**：`{ cancelled: boolean }`
-- **错误码**：`E2062`（导出任务不存在或已完成）
+- **错误码**：`E2602`（导出任务不存在或已取消）
 - **超时**：5 秒
 
 #### `renderer:export:progress`（通知）
@@ -401,14 +401,14 @@ interface IPCNotification<T = unknown> {
 - **说明**：加载子项目对话历史
 - **请求参数**：`{ subprojectId: string }`
 - **响应数据**：`Conversation`（见 交互流程.md）
-- **错误码**：`E2070`（对话文件不存在）
+- **错误码**：`E2701`（对话历史文件损坏/不存在）
 - **超时**：3 秒
 
 #### `main:conversation:save`
 - **说明**：保存对话历史
 - **请求参数**：`{ subprojectId: string; conversation: Conversation }`
 - **响应数据**：`{ saved: boolean }`
-- **错误码**：`E2071`（保存失败）
+- **错误码**：`E2204`（文件写入失败）
 - **超时**：5 秒
 
 ---
@@ -425,7 +425,7 @@ interface IPCNotification<T = unknown> {
 - **说明**：更新应用设置
 - **请求参数**：`{ settings: Partial<AppSettings> }`
 - **响应数据**：`{ updated: boolean }`
-- **错误码**：`E2100`（设置值无效）
+- **错误码**：`E2002`（无效的 IPC 参数）
 - **超时**：3 秒
 
 ---
@@ -465,7 +465,7 @@ interface IPCNotification<T = unknown> {
   }
   ```
 - **响应模式**：流式（通过 `renderer:llm:chunk` 通知逐字推送）
-- **错误码**：`E2080`（LLM API 配置错误）、`E2081`（LLM 请求失败）、`E2082`（LLM 流式中断）
+- **错误码**：`E2804`（LLM API Key 无效）、`E2800`（LLM 服务未知错误）、`E2810`（LLM 流式响应中断）
 - **超时**：90 秒（首次响应）；流式输出无超时，但单次 chunk 间隔 > 30 秒视为中断
 
 #### `renderer:llm:chunk`（通知）
@@ -499,22 +499,22 @@ interface IPCNotification<T = unknown> {
 
 | IPC 接口 | 可能返回的错误码 | 说明 |
 |----------|----------------|------|
-| `main:project:create` | `E2015`, `E2016`, `E2017` | 目录已存在、空间不足、路径非法 |
-| `main:project:open` | `E2018`, `E2019` | 项目不存在、文件损坏 |
-| `main:project:delete` | `E2018` | 项目不存在 |
-| `main:project:rename` | `E2017`, `E2020` | 名称非法、重复 |
-| `main:subproject:create` | `E2021` | 超出数量限制 |
-| `main:subproject:delete` | `E2022` | 子项目不存在 |
-| `main:timeline:load` | `E2040`, `E2041` | 时间线不存在、格式错误 |
-| `main:timeline:save` | `E2042`, `E2043` | 写入失败、校验失败 |
-| `main:asset:import` | `E2030`, `E2031`, `E2032` | 文件不存在、格式不支持、空间不足 |
-| `main:asset:delete` | `E2033`, `E2034` | 素材不存在、被占用 |
-| `main:preview:reload` | `E2050` | iframe 加载失败 |
-| `main:export:start` | `E2060`, `E2061` | 参数无效、无写入权限 |
-| `main:export:cancel` | `E2062` | 任务不存在 |
-| `main:settings:update` | `E2100` | 设置值无效 |
+| `main:project:create` | `E2101`, `E2005`, `E2103` | 目录已存在、空间不足、名称非法 |
+| `main:project:open` | `E2104`, `E2115` | 项目不存在、文件损坏 |
+| `main:project:delete` | `E2104` | 项目不存在 |
+| `main:project:rename` | `E2103`, `E2113` | 名称非法、重复 |
+| `main:subproject:create` | `E2111` | 超出数量限制 |
+| `main:subproject:delete` | `E2112` | 子项目不存在 |
+| `main:timeline:load` | `E2411`, `E2400` | 时间线不存在、格式错误 |
+| `main:timeline:save` | `E2204`, `E2400` | 写入失败、校验失败 |
+| `main:asset:import` | `E2205`, `E2301`, `E2005` | 文件不存在、格式不支持、空间不足 |
+| `main:asset:delete` | `E2303`, `E2304` | 素材不存在、被占用 |
+| `main:preview:reload` | `E2501` | iframe 加载失败 |
+| `main:export:start` | `E2604`, `E2605` | 参数无效、无写入权限 |
+| `main:export:cancel` | `E2602` | 任务不存在 |
+| `main:settings:update` | `E2002` | 设置值无效 |
 | `main:python:proxy` | `E1000`, `E1002` | Python 不可用、超时 |
-| `main:llm:stream` | `E2080`, `E2081`, `E2082` | 配置错误、请求失败、流式中断 |
+| `main:llm:stream` | `E2804`, `E2800`, `E2810` | 配置错误、请求失败、流式中断 |
 
 ---
 
