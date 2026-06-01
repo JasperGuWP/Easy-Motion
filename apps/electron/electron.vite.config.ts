@@ -4,7 +4,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   main: {
-    build: { outDir: 'dist/main' },
+    build: {
+      outDir: 'dist/main',
+      rollupOptions: {
+        external: ['fsevents'],
+      },
+    },
     plugins: [externalizeDepsPlugin()],
   },
   preload: {

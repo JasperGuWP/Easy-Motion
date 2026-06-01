@@ -45,8 +45,23 @@ export const IPC_CHANNELS = {
     PLAY: 'main:preview:play',
     PAUSE: 'main:preview:pause',
     SEEK: 'main:preview:seek',
+    START_SERVER: 'main:preview:startServer',
+    STOP_SERVER: 'main:preview:stopServer',
+    GET_STATUS: 'main:preview:getStatus',
+    GENERATE_AND_UPDATE: 'main:preview:generateAndUpdate',
   },
 } as const;
+
+export const RENDERER_CHANNELS = {
+  PREVIEW_STATUS_CHANGED: 'renderer:preview:statusChanged',
+  PREVIEW_ERROR: 'renderer:preview:error',
+} as const;
+
+export const PREVIEW_ZOOM_MIN = 0.5;
+export const PREVIEW_ZOOM_MAX = 2.0;
+export const PREVIEW_ZOOM_STEP = 0.1;
+export const PREVIEW_ZOOM_DEFAULT = 1.0;
+export const TIMELINE_DEBOUNCE_MS = 500;
 
 export const APP_CONFIG_DIR = '.easymotion';
 export const DEFAULT_PROJECT_DIR = 'EasyMotion';

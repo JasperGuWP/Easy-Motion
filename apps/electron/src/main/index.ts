@@ -5,6 +5,7 @@ import { FileService } from './file-service';
 import { WriteQueue } from './write-queue';
 import { TemplateService } from './template-service';
 import { ProjectService } from './project-service';
+import { PreviewService } from './preview-service';
 import { registerAllIpcHandlers } from './ipc-handlers';
 import { TimelineGenerator } from './generator';
 import { TemplateEngine } from './generator/template-engine';
@@ -68,9 +69,10 @@ if (!gotTheLock) {
     const componentRegistry = new ComponentRegistry();
     const generator = new TimelineGenerator(templateEngine, componentRegistry);
 
-    registerAllIpcHandlers({ projectService, generator });
-
     createWindow();
+
+    const previewService = new PreviewService(mainWindow!);
+    registerAllIpcHandlers({ projectService, generator, previewService });
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
