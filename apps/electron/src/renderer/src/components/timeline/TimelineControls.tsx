@@ -14,6 +14,11 @@ export const TimelineControls: React.FC<TimelineControlsProps> = React.memo(
     const seekTo = useTimelineStore((s) => s.seekTo);
     const stepForward = useTimelineStore((s) => s.stepForward);
     const stepBackward = useTimelineStore((s) => s.stepBackward);
+    const zoomIn = useTimelineStore((s) => s.zoomIn);
+    const zoomOut = useTimelineStore((s) => s.zoomOut);
+    const toggleSnap = useTimelineStore((s) => s.toggleSnap);
+    const snapEnabled = useTimelineStore((s) => s.snapEnabled);
+    const pixelsPerFrame = useTimelineStore((s) => s.pixelsPerFrame);
 
     const formatTime = (frame: number, fps: number): string => {
       const totalSeconds = frame / fps;
@@ -24,6 +29,22 @@ export const TimelineControls: React.FC<TimelineControlsProps> = React.memo(
     };
 
     const fps = 30;
+
+    const buttonStyle: React.CSSProperties = {
+      backgroundColor: '#333',
+      border: 'none',
+      borderRadius: '4px',
+      color: '#fff',
+      padding: '6px 12px',
+      cursor: 'pointer',
+      fontSize: '13px',
+      minWidth: '32px',
+    };
+
+    const activeButtonStyle: React.CSSProperties = {
+      ...buttonStyle,
+      backgroundColor: '#4a90d9',
+    };
 
     return (
       <div
@@ -40,44 +61,14 @@ export const TimelineControls: React.FC<TimelineControlsProps> = React.memo(
       >
         <button
           onClick={() => (isPlaying ? pause() : play())}
-          style={{
-            backgroundColor: '#4a90d9',
-            border: 'none',
-            borderRadius: '4px',
-            color: '#fff',
-            padding: '6px 16px',
-            cursor: 'pointer',
-            fontSize: '13px',
-          }}
+          style={activeButtonStyle}
         >
           {isPlaying ? '⏸ Pause' : '▶ Play'}
         </button>
-        <button
-          onClick={() => stepBackward()}
-          style={{
-            backgroundColor: '#333',
-            border: 'none',
-            borderRadius: '4px',
-            color: '#fff',
-            padding: '6px 12px',
-            cursor: 'pointer',
-            fontSize: '13px',
-          }}
-        >
+        <button onClick={() => stepBackward()} style={buttonStyle}>
           ⏮
         </button>
-        <button
-          onClick={() => stepForward()}
-          style={{
-            backgroundColor: '#333',
-            border: 'none',
-            borderRadius: '4px',
-            color: '#fff',
-            padding: '6px 12px',
-            cursor: 'pointer',
-            fontSize: '13px',
-          }}
-        >
+        <button onClick={() => stepForward()} style={buttonStyle}>
           ⏭
         </button>
         <div
@@ -98,6 +89,22 @@ export const TimelineControls: React.FC<TimelineControlsProps> = React.memo(
           onChange={(e) => seekTo(Number(e.target.value))}
           style={{ flex: 1, cursor: 'pointer' }}
         />
+        <button
+          onClick={toggleSnap}
+          title={snapEnabled ? 'Snap enabled' : 'Snap disabled'}
+          style={snapEnabled ? activeButtonStyle : { ...buttonStyle, color: '#888' }}
+        >
+          🧲
+        </button>
+        <button onClick={zoomOut} style={buttonStyle} title="Zoom out">
+          −
+        </button>
+        <span style={{ fontSize: '12px', color: '#888', minWidth: '40px', textAlign: 'center' }}>
+          {Math.round(pixelsPerFrame * 10) / 10}×
+        </span>
+        <button onClick={zoomIn} style={buttonStyle} title="Zoom in">
+          +
+        </button>
       </div>
     );
   }
