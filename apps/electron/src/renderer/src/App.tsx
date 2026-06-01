@@ -1,7 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { PreviewPanel } from './components/preview/PreviewPanel';
 import { TimelinePanel } from './components/timeline/TimelinePanel';
+import { useTimelineStore } from './stores/timelineStore';
+import { usePreviewStore } from './stores/previewStore';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const App: React.FC = () => {
+  useKeyboardShortcuts();
+
+  const previewFrame = usePreviewStore((s) => s.currentFrame);
+  const timelineSeekTo = useTimelineStore((s) => s.seekTo);
+
+  useEffect(() => {
+    timelineSeekTo(previewFrame);
+  }, [previewFrame, timelineSeekTo]);
+
   return (
     <div
       style={{
@@ -13,23 +26,8 @@ const App: React.FC = () => {
         color: '#ffffff',
       }}
     >
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <h1
-          style={{
-            fontSize: '2rem',
-            fontWeight: 600,
-            letterSpacing: '0.05em',
-          }}
-        >
-          EasyMotion — M2 Timeline
-        </h1>
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <PreviewPanel />
       </div>
       <div style={{ height: '240px', borderTop: '1px solid #2a2a4e' }}>
         <TimelinePanel />
