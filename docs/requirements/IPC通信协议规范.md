@@ -607,20 +607,43 @@ class ProjectWriteQueue {
 
 ### 1. 通道白名单
 
-主进程启动时注册 IPC 处理器，未注册的通道将被拒绝：
+主进程启动时为每个允许的 channel 单独注册 IPC 处理器（Electron **不支持** `ipcMain.handle('*', ...)` 通配符注册）。未注册的通道调用会被 Electron 框架直接拒绝。
 
 ```typescript
 // main/index.ts
 const VALID_CHANNELS = [
   'main:project:list',
   'main:project:create',
+  'main:project:rename',
+  'main:project:open',
+  'main:project:close',
+  'main:asset:import',
+  'main:asset:list',
+  'main:asset:thumbnail',
+  'main:timeline:save',
+  'main:timeline:load',
+  'main:preview:control',
+  'main:export:start',
+  'main:python:proxy',
+  'main:settings:get',
+  'main:settings:set',
+  'main:log:write',
   // ... 所有允许的通道
-];
+] as const;
+export type ValidChannel = typeof VALID_CHANNELS[number];
 
-ipcMain.handle('*', (event, channel) => {
-  if (!VALID_CHANNELS.includes(channel)) {
+// 方式 A（推荐）：启动时遍历注册
+for (const channel of VALID_CHANNELS) {
+  const handler = IPC_HANDLERS[channel]; // 集中式 handler 映射表
+  ipcMain.handle(channel, handler);
+}
+
+// 方式 B：统一入口 + switch 分发
+ipcMain.handle('__dispatch', async (event, channel: string, payload: unknown) => {
+  if (!VALID_CHANNELS.includes(channel as ValidChannel)) {
     throw new Error(`未授权的 IPC 通道: ${channel}`);
   }
+  return IPC_HANDLERS[channel as ValidChannel](event, payload);
 });
 ```
 

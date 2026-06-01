@@ -101,12 +101,15 @@ interface AgentTask {
 - 动画时长使用帧数（frame）单位
 - 默认帧率为 30fps
 
-你可以调用的工具：
+你可以调用的工具（共 8 个，命名采用 camelCase）：
 - createTrack: 创建新轨道
+- createClip: 在指定轨道上创建片段
 - updateClip: 更新片段属性
 - deleteClip: 删除片段
-- addKeyframe: 添加关键帧
-- queryElement: 查询元素信息
+- addKeyframe: 为片段属性添加关键帧
+- setAnimation: 设置片段的入场/出场动画
+- queryElement: 查询时间线元素信息
+- importAsset: 导入素材到项目
 
 当前项目信息：
 - 分辨率：{width}×{height}
@@ -419,7 +422,17 @@ const addKeyframeTool: Tool = {
       clipId: { type: 'string' },
       property: { type: 'string', description: '属性路径（如 transform.opacity）' },
       frame: { type: 'number', description: '关键帧所在帧号' },
-      value: { type: 'any', description: '属性值' },
+      value: {
+        description: '属性值（类型由 property 决定，number / string / Color 等）',
+        // JSON Schema 不支持 any，用 oneOf 列举常见类型；其它类型在运行时校验
+        oneOf: [
+          { type: 'number' },
+          { type: 'string' },
+          { type: 'boolean' },
+          { type: 'object' },
+          { type: 'array' }
+        ]
+      },
       easing: { type: 'string', enum: ['linear', 'ease-in', 'ease-out', 'ease-in-out', 'spring'], default: 'linear' }
     },
     required: ['clipId', 'property', 'frame', 'value']
@@ -596,7 +609,7 @@ Agent 分析：
 | 元素定位失败 | queryElement 返回空或低置信度 | 列出候选元素让用户选择 |
 | 参数越界 | 校验器检测到值超出有效范围 | 自动截断到边界值，提示"已自动调整到最大/最小支持值" |
 | 生成代码语法错误 | esbuild 校验失败 | 尝试自动修复（补全 import 等）；失败则回退 |
-| 安全违规 | 正则白名单检测到危险 API | 拒绝执行，标记为异常 |
+| 安全违规 | 正则黑名单检测到危险 API | 拒绝执行，标记为异常 |
 | LLM 调用超时 | > 60 秒无响应 | 重试 1 次；仍超时进入简化模式 |
 
 ### 简化模式

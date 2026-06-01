@@ -39,7 +39,7 @@
 {
   "success": false,
   "error": {
-    "code": "E1001",
+    "code": "E1100",
     "message": "错误描述",
     "details": { ... }
   },
@@ -64,18 +64,31 @@
 
 ### 错误码定义
 
-| 错误码 | 含义 | HTTP 状态码 | 说明 |
+> 错误码严格遵循《错误码统一字典》(E11xx = 爬虫模块, E12xx = 数据解析模块, E10xx = 通用)。完整码表见该文档。
+
+| 错误码 | 名称 | HTTP 状态码 | 说明 |
 |--------|------|-------------|------|
-| E1001 | URL_INVALID | 400 | URL 格式不正确 |
-| E1002 | URL_UNREACHABLE | 422 | URL 无法访问（DNS 失败、超时）|
-| E1003 | PAGE_LOAD_FAILED | 422 | Playwright 页面加载失败 |
-| E1004 | CONTENT_EXTRACT_FAILED | 500 | 内容提取失败 |
-| E1005 | RATE_LIMITED | 429 | 请求被目标网站限速 |
-| E1006 | BROWSER_CRASH | 503 | Playwright 浏览器崩溃 |
-| E1007 | FILE_SAVE_FAILED | 500 | 文件保存失败（磁盘满/权限不足）|
-| E1008 | UNSUPPORTED_FORMAT | 400 | 不支持的文件格式 |
-| E1009 | DATA_PARSE_FAILED | 422 | 数据解析失败（CSV/JSON 格式错误）|
-| E1010 | TIMEOUT | 422 | 操作超时 |
+| E1000 | PYTHON_SERVICE_UNAVAILABLE | 503 | Python FastAPI 服务未启动或不可用 |
+| E1001 | PYTHON_BROWSER_CRASH | 503 | Playwright 浏览器崩溃 |
+| E1002 | PYTHON_TIMEOUT | 504 | 操作超时 |
+| E1003 | PYTHON_UNKNOWN_ERROR | 500 | Python 服务未知错误 |
+| E1100 | CRAWL_URL_INVALID | 400 | URL 格式不正确 |
+| E1101 | CRAWL_URL_UNREACHABLE | 422 | URL 无法访问（DNS 失败、超时）|
+| E1102 | CRAWL_PAGE_LOAD_FAILED | 422 | Playwright 页面加载失败（HTTP >= 500）|
+| E1103 | CRAWL_CONTENT_EXTRACT_FAILED | 500 | 内容提取失败（DOM 解析异常）|
+| E1104 | CRAWL_RATE_LIMITED | 429 | 请求被目标网站限速（HTTP 429）|
+| E1105 | CRAWL_BLOCKED | 403 | 被目标网站阻止（验证码等）|
+| E1106 | CRAWL_FILE_SAVE_FAILED | 500 | 文件保存失败（磁盘满/权限不足）|
+| E1107 | CRAWL_UNSUPPORTED_FORMAT | 400 | 不支持的文件格式 |
+| E1108 | CRAWL_SELECTOR_NOT_FOUND | 422 | 等待的选择器未出现 |
+| E1109 | CRAWL_PROXY_ERROR | 500 | 代理服务器错误 |
+| E1200 | DATA_FILE_NOT_FOUND | 404 | 数据文件不存在 |
+| E1201 | DATA_PARSE_FAILED | 422 | 数据解析失败（CSV/JSON 格式错误）|
+| E1202 | DATA_UNSUPPORTED_FORMAT | 400 | 不支持的数据格式 |
+| E1203 | DATA_ENCODING_ERROR | 422 | 文件编码错误 |
+| E1204 | DATA_TOO_LARGE | 413 | 文件超过大小限制（默认 50MB）|
+| E1205 | DATA_EMPTY | 422 | 文件内容为空 |
+| E1206 | DATA_FILTER_ERROR | 400 | 过滤条件表达式错误 |
 
 ---
 
@@ -194,7 +207,7 @@ Content-Type: application/json
 {
   "success": false,
   "error": {
-    "code": "E1010",
+    "code": "E1101",
     "message": "页面加载超时",
     "details": {
       "url": "https://example.com/slow-page",
@@ -256,7 +269,7 @@ Content-Type: application/json
 {
   "success": false,
   "error": {
-    "code": "E1007",
+    "code": "E1106",
     "message": "文件保存失败：磁盘空间不足",
     "details": {
       "outputPath": "/home/user/EasyMotion/项目/data/article.html",
@@ -385,7 +398,7 @@ Content-Type: application/json
 {
   "success": false,
   "error": {
-    "code": "E1009",
+    "code": "E1201",
     "message": "CSV 解析失败：第 3 行列数不一致",
     "details": {
       "filePath": "/home/user/EasyMotion/项目/data/broken.csv",
@@ -464,8 +477,9 @@ Content-Type: application/json
 
 ```python
 # src/crawler/playwright_crawler.py
-from playwright.sync_api import sync_playwright
+from playwright.async_api import async_playwright
 import random
+import asyncio
 
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36...",
@@ -475,18 +489,30 @@ USER_AGENTS = [
 
 class PlaywrightCrawler:
     def __init__(self):
-        self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(
+        # 启动异步 Playwright（避免阻塞 FastAPI 事件循环）
+        self.playwright = None
+        self.browser = None
+    
+    async def start(self):
+        """在 FastAPI 启动事件中调用"""
+        self.playwright = await async_playwright().start()
+        self.browser = await self.playwright.chromium.launch(
             headless=True,
             args=[
+                # 仅隐藏自动化特征，不破坏同源策略
                 "--disable-blink-features=AutomationControlled",
-                "--disable-web-security",
-                "--disable-features=IsolateOrigins,site-per-process",
             ]
         )
     
-    def crawl(self, url: str, options: dict = None):
-        context = self.browser.new_context(
+    async def stop(self):
+        """在 FastAPI 关闭事件中调用"""
+        if self.browser:
+            await self.browser.close()
+        if self.playwright:
+            await self.playwright.stop()
+    
+    async def crawl(self, url: str, options: dict = None):
+        context = await self.browser.new_context(
             user_agent=random.choice(USER_AGENTS),
             viewport={"width": 1920, "height": 1080},
             locale="zh-CN",
@@ -494,39 +520,42 @@ class PlaywrightCrawler:
         )
         
         # 注入脚本隐藏自动化特征
-        context.add_init_script("""
+        await context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined
             });
             window.chrome = { runtime: {} };
         """)
         
-        page = context.new_page()
+        page = await context.new_page()
         
         # 随机延迟 1-3 秒
-        time.sleep(random.uniform(1, 3))
+        await asyncio.sleep(random.uniform(1, 3))
         
         # 模拟真实用户行为
-        page.mouse.move(random.randint(100, 500), random.randint(100, 500))
+        await page.mouse.move(random.randint(100, 500), random.randint(100, 500))
         
-        response = page.goto(url, wait_until="networkidle", timeout=30000)
+        response = await page.goto(url, wait_until="networkidle", timeout=30000)
         
         # 等待指定选择器或超时
         if options and options.get("waitForSelector"):
-            page.wait_for_selector(options["waitForSelector"], timeout=options.get("waitForTimeout", 3000))
+            await page.wait_for_selector(
+                options["waitForSelector"],
+                timeout=options.get("waitForTimeout", 3000)
+            )
         elif options and options.get("waitForTimeout"):
-            page.wait_for_timeout(options["waitForTimeout"])
+            await page.wait_for_timeout(options["waitForTimeout"])
         
         # 滚动加载（如果需要）
         if options and options.get("scrollToBottom"):
-            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            page.wait_for_timeout(2000)
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await page.wait_for_timeout(2000)
         
         # 提取内容
-        content = page.inner_text("body")
-        title = page.title()
+        content = await page.inner_text("body")
+        title = await page.title()
         
-        context.close()
+        await context.close()
         
         return {
             "url": url,
@@ -564,6 +593,8 @@ class PythonClient {
       headers: {
         "Content-Type": "application/json",
       },
+      // 关键：不要让 axios 在 4xx/5xx 时抛异常，统一交给业务层用 error.code 判断
+      validateStatus: () => true,
     });
   }
 
@@ -650,13 +681,13 @@ try {
 } catch (error) {
   if (error instanceof PythonAPIError) {
     switch (error.code) {
-      case "E1001":
+      case "E1100":
         console.error("URL 格式错误:", error.message);
         break;
-      case "E1010":
+      case "E1101":
         console.error("页面加载超时，请检查网络或稍后重试");
         break;
-      case "E1006":
+      case "E1001":
         console.error("浏览器崩溃，正在重启...");
         // 触发 Python 服务重启
         await pythonService.restart();
@@ -689,6 +720,8 @@ class PythonService {
   private heartbeatInterval: NodeJS.Timeout | null = null;
 
   async start(): Promise<void> {
+    // 启动打包后的 Python 二进制（PyInstaller --onefile 产物）。
+    // 开发环境也可直接 spawn("python", [scriptPath, ...])，二者二选一。
     const pythonPath = path.join(__dirname, "../../resources/python/main");
     
     this.process = spawn(pythonPath, ["--port", this.port.toString()], {

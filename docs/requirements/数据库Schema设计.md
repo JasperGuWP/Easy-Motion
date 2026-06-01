@@ -78,6 +78,7 @@ CREATE TABLE assets (
   thumbnail_path  TEXT,                          -- 缩略图相对路径
   tags            TEXT,                          -- 标签，JSON 数组序列化，如 "[\"logo\",\"blue\"]"
   is_favorite     INTEGER DEFAULT 0,              -- 是否收藏（0=否，1=是）
+  is_deleted      INTEGER DEFAULT 0,              -- 软删除标记（0=正常，1=已删除）—— 与 projects / presets 保持一致
   usage_count     INTEGER DEFAULT 0,              -- 使用次数（用于"最近使用"排序）
   last_used_at    INTEGER,                       -- 最后使用时间（Unix 时间戳毫秒）
   imported_at     INTEGER NOT NULL,              -- 导入时间（Unix 时间戳毫秒）
@@ -92,6 +93,7 @@ CREATE INDEX idx_assets_type ON assets(type);
 CREATE INDEX idx_assets_content_hash ON assets(content_hash);
 CREATE INDEX idx_assets_imported ON assets(imported_at DESC);
 CREATE INDEX idx_assets_favorite ON assets(is_favorite, project_id);
+CREATE INDEX idx_assets_deleted ON assets(is_deleted);
 CREATE INDEX idx_assets_name ON assets(name COLLATE NOCASE);  -- 不区分大小写搜索
 ```
 
@@ -165,44 +167,22 @@ CREATE INDEX idx_presets_builtin ON presets(is_builtin);
 
 ---
 
-### 5. app_settings（应用设置表）
+### 5. ~~app_settings（应用设置表）~~ **已废弃**
 
-存储用户级应用配置（非项目级）。
-
-```sql
-CREATE TABLE app_settings (
-  key             TEXT PRIMARY KEY,              -- 配置键
-  value           TEXT NOT NULL,                -- 配置值（JSON 字符串）
-  updated_at      INTEGER NOT NULL              -- 更新时间
-);
-```
-
-**预设配置项：**
-
-| key | 默认值 | 说明 |
-|-----|--------|------|
-| `theme` | `"system"` | 主题：`light` / `dark` / `system` |
-| `language` | `"zh-CN"` | 界面语言 |
-| `default_resolution` | `"1920x1080"` | 新建项目默认分辨率 |
-| `default_fps` | `30` | 新建项目默认帧率 |
-| `default_duration` | `300` | 新建项目默认时长（帧） |
-| `llm_provider` | `"openai"` | LLM 提供商 |
-| `llm_model` | `"gpt-4o"` | LLM 模型 |
-| `llm_api_key_encrypted` | `null` | 加密存储的 API Key |
-| `auto_save_interval` | `30` | 自动保存间隔（秒） |
-| `preview_quality` | `"high"` | 预览质量：`high` / `medium` / `low` |
-| `panel_left_width` | `240` | 左侧面板宽度（像素） |
-| `panel_right_width` | `280` | 右侧面板宽度（像素） |
-| `panel_timeline_height` | `180` | 时间线面板高度（像素） |
-| `show_welcome` | `1` | 首次启动是否显示欢迎窗口 |
-| `check_update` | `1` | 是否自动检查更新 |
-| `debug_mode` | `0` | 调试模式开关 |
-| `recent_projects_limit` | `20` | 最近项目列表最大数量 |
-
-**说明：**
-- 所有值以 JSON 字符串存储，读取时根据 key 解析为对应类型
-- `value` 为 `null` 时使用默认值
-- 设置变更时立即写入（不防抖），避免丢失
+> **2026-06 重构**：本表已从 schema 中移除。**所有应用设置统一存储在 `~/.easymotion/settings.json` 文件中**（结构见《配置管理参考》§ settings.json），SQLite 不再承担应用设置存储职责。
+>
+> 废弃原因：
+> 1. 存在双重存储（`settings.json` + `app_settings` 表），需手动同步，违反 single source of truth
+> 2. `settings.json` 已经覆盖所有应用设置场景，文件读写性能足够
+> 3. `app_settings` 表与项目库（`projects` / `assets` / `asset_relations`）在语义上不同，混在一起破坏职责清晰
+>
+> 取而代之的最小化 SQLite 方案：
+> - 用户级非敏感设置 → `~/.easymotion/settings.json`（**唯一源**）
+> - 窗口位置/UI 状态 → `~/.easymotion/ui-state.json`
+> - 敏感信息（API Key）→ `~/.easymotion/secrets.json`（加密）
+> - 最近项目列表 → `projects` 表（`last_opened_at` 字段，足够）
+>
+> 如果未来需要缓存或热重载，可以从 `settings.json` 加载到内存即可，**不再写回 SQLite**。
 
 ---
 
@@ -213,7 +193,7 @@ CREATE TABLE app_settings (
 ```sql
 CREATE TABLE conversations (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  subproject_id   TEXT NOT NULL,                 -- 子项目 ID
+  subproject_id   TEXT NOT NULL UNIQUE,         -- 子项目 ID（每个子项目最多 1 条索引记录）
   project_id      TEXT NOT NULL,
   message_count   INTEGER DEFAULT 0,              -- 消息数量（缓存）
   last_message_at INTEGER,                       -- 最后对话时间
@@ -225,7 +205,7 @@ CREATE TABLE conversations (
 **索引：**
 ```sql
 CREATE INDEX idx_conversations_project ON conversations(project_id);
-CREATE INDEX idx_conversations_subproject ON conversations(subproject_id);
+-- subproject_id 已被 UNIQUE 约束自动创建索引，无需重复
 ```
 
 ---
@@ -238,25 +218,11 @@ PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 
 -- 创建表
--- ...（上述所有 CREATE TABLE 语句）
+-- ...（上述所有 CREATE TABLE 语句，已移除 app_settings）
 
--- 插入默认设置
-INSERT INTO app_settings (key, value, updated_at) VALUES
-  ('theme', '"system"', strftime('%s', 'now') * 1000),
-  ('language', '"zh-CN"', strftime('%s', 'now') * 1000),
-  ('default_resolution', '"1920x1080"', strftime('%s', 'now') * 1000),
-  ('default_fps', '30', strftime('%s', 'now') * 1000),
-  ('default_duration', '300', strftime('%s', 'now') * 1000),
-  ('auto_save_interval', '30', strftime('%s', 'now') * 1000),
-  ('preview_quality', '"high"', strftime('%s', 'now') * 1000),
-  ('panel_left_width', '240', strftime('%s', 'now') * 1000),
-  ('panel_right_width', '280', strftime('%s', 'now') * 1000),
-  ('panel_timeline_height', '180', strftime('%s', 'now') * 1000),
-  ('show_welcome', '1', strftime('%s', 'now') * 1000),
-  ('check_update', '1', strftime('%s', 'now') * 1000),
-  ('debug_mode', '0', strftime('%s', 'now') * 1000),
-  ('recent_projects_limit', '20', strftime('%s', 'now') * 1000)
-ON CONFLICT(key) DO NOTHING;
+-- ⚠️ 应用设置不再写入 SQLite
+-- 首次启动时如果 ~/.easymotion/settings.json 不存在，
+-- 由 Node.js 主进程从 apps/electron/resources/defaults/settings.default.json 复制并写入
 
 -- 插入内置预设（示例）
 INSERT INTO presets (id, name, category, description, template_json, is_builtin, created_at, updated_at) VALUES
@@ -270,11 +236,15 @@ INSERT INTO presets (id, name, category, description, template_json, is_builtin,
 
 ### 版本控制
 
-在 `app_settings` 表中存储数据库 schema 版本：
+数据库 schema 版本不再存储在 `app_settings` 表中，改用独立的单行表 `schema_version`（仅 1 行，存根字段）：
 
-| key | value |
-|-----|-------|
-| `db_version` | `1` |
+```sql
+CREATE TABLE schema_version (
+  singleton      INTEGER PRIMARY KEY CHECK(singleton = 1),  -- 强制单行
+  version        INTEGER NOT NULL
+);
+INSERT INTO schema_version (singleton, version) VALUES (1, 1);
+```
 
 ### 升级流程
 
@@ -298,7 +268,7 @@ INSERT INTO presets (id, name, category, description, template_json, is_builtin,
 ```sql
 -- v1 → v2：新增 assets.tags 字段
 ALTER TABLE assets ADD COLUMN tags TEXT DEFAULT '[]';
-UPDATE app_settings SET value = '2', updated_at = strftime('%s', 'now') * 1000 WHERE key = 'db_version';
+UPDATE schema_version SET version = 2 WHERE singleton = 1;
 ```
 
 ---
