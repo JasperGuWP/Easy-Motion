@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import type { WritableDraft } from 'immer';
 import {
   type Clip,
   type Keyframe,
@@ -10,6 +11,23 @@ import {
   type Transform,
   MAX_UNDO_STEPS,
 } from '@easymotion/shared';
+import {
+  CommandHistory,
+  PatchCommand,
+  MoveClipCommand,
+  ResizeClipCommand,
+  ReorderTracksCommand,
+  AddTrackCommand,
+  RemoveTrackCommand,
+  AddClipCommand,
+  RemoveClipCommand,
+  ToggleTrackVisibilityCommand,
+  ToggleTrackLockCommand,
+  UpdateKeyframeCommand,
+} from './commands';
+import type { Command } from './commands';
+
+const commandHistory = new CommandHistory(MAX_UNDO_STEPS);
 
 interface TimelineState {
   timeline: Timeline | null;
@@ -20,10 +38,14 @@ interface TimelineState {
   selectedTrackId: string | null;
   selectedClipId: string | null;
   selectedKeyframeId: string | null;
-  history: { past: Timeline[]; future: Timeline[] };
+  historyMeta: { canUndo: boolean; canRedo: boolean; pastCount: number; futureCount: number };
   hasUnsavedChanges: boolean;
   isGenerating: boolean;
   generatorProgress: number;
+  pixelsPerFrame: number;
+  snapEnabled: boolean;
+  scrollLeft: number;
+  activeSnapLines: number[];
 }
 
 interface TimelineActions {
@@ -33,10 +55,14 @@ interface TimelineActions {
   reorderTracks(trackIds: string[]): void;
   toggleTrackVisibility(trackId: string): void;
   toggleTrackLock(trackId: string): void;
+  toggleTrackMute(trackId: string): void;
+  toggleTrackSolo(trackId: string): void;
   addClip(trackId: string, clip: Clip): void;
   removeClip(trackId: string, clipId: string): void;
   moveClip(clipId: string, targetTrackId: string, newStartFrame: number): void;
-  resizeClip(clipId: string, newDuration: number): void;
+  moveClipImmediate(clipId: string, targetTrackId: string, newStartFrame: number): void;
+  resizeClip(clipId: string, newStartFrame: number, newDuration: number): void;
+  resizeClipImmediate(clipId: string, newStartFrame: number, newDuration: number): void;
   updateClipTransform(clipId: string, transform: Partial<Transform>): void;
   addKeyframe(clipId: string, keyframe: Keyframe): void;
   removeKeyframe(clipId: string, keyframeId: string): void;
@@ -57,19 +83,39 @@ interface TimelineActions {
   canRedo(): boolean;
   clearHistory(): void;
   setGenerating(isGenerating: boolean, progress?: number): void;
+  setPixelsPerFrame(value: number): void;
+  zoomIn(): void;
+  zoomOut(): void;
+  setScrollLeft(value: number): void;
+  toggleSnap(): void;
+  removeSelectedClip(): void;
+  splitClip(clipId: string, splitFrame: number): void;
+  setActiveSnapLines(lines: number[]): void;
 }
 
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj)) as T;
 }
 
-function saveHistory(state: TimelineState): void {
+function pushPatchCommand(
+  state: WritableDraft<TimelineState>,
+  before: Timeline
+): void {
   if (!state.timeline) return;
-  state.history.past.push(deepClone(state.timeline));
-  if (state.history.past.length > MAX_UNDO_STEPS) {
-    state.history.past.shift();
-  }
-  state.history.future = [];
+  const after = deepClone(state.timeline);
+  commandHistory.push(new PatchCommand(before, after));
+  state.historyMeta.canUndo = commandHistory.canUndo();
+  state.historyMeta.canRedo = commandHistory.canRedo();
+  state.historyMeta.pastCount = commandHistory.getPastCount();
+  state.historyMeta.futureCount = commandHistory.getFutureCount();
+}
+
+function pushCommand(state: WritableDraft<TimelineState>, command: Command): void {
+  commandHistory.push(command);
+  state.historyMeta.canUndo = commandHistory.canUndo();
+  state.historyMeta.canRedo = commandHistory.canRedo();
+  state.historyMeta.pastCount = commandHistory.getPastCount();
+  state.historyMeta.futureCount = commandHistory.getFutureCount();
 }
 
 function findClipAndTrack(
@@ -94,24 +140,28 @@ const initialState: TimelineState = {
   selectedTrackId: null,
   selectedClipId: null,
   selectedKeyframeId: null,
-  history: { past: [], future: [] },
+  historyMeta: { canUndo: false, canRedo: false, pastCount: 0, futureCount: 0 },
   hasUnsavedChanges: false,
   isGenerating: false,
   generatorProgress: 0,
+  pixelsPerFrame: 2,
+  snapEnabled: true,
+  scrollLeft: 0,
+  activeSnapLines: [],
 };
 
 type TimelineStore = TimelineState & TimelineActions;
 
 export const useTimelineStore = create<TimelineStore>()(
   devtools(
-    immer((set, get) => ({
+    immer((set) => ({
       ...initialState,
 
       loadTimeline: (timeline) => {
         set((state) => {
           state.timeline = timeline;
-          state.history.past = [];
-          state.history.future = [];
+          commandHistory.clear();
+          state.historyMeta = { canUndo: false, canRedo: false, pastCount: 0, futureCount: 0 };
           state.hasUnsavedChanges = false;
           state.currentFrame = 0;
           state.isPlaying = false;
@@ -122,7 +172,6 @@ export const useTimelineStore = create<TimelineStore>()(
         const trackId = crypto.randomUUID();
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
           const maxOrder = state.timeline.tracks.reduce(
             (max, t) => Math.max(max, t.order),
             -1
@@ -138,6 +187,7 @@ export const useTimelineStore = create<TimelineStore>()(
           };
           state.timeline.tracks.push(newTrack);
           state.hasUnsavedChanges = true;
+          pushCommand(state, new AddTrackCommand(trackId, deepClone(newTrack)));
         });
         return trackId;
       },
@@ -145,18 +195,21 @@ export const useTimelineStore = create<TimelineStore>()(
       removeTrack: (trackId) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
+          const track = state.timeline.tracks.find((t) => t.id === trackId);
+          if (!track) return;
+          const trackData = deepClone(track);
           state.timeline.tracks = state.timeline.tracks.filter(
             (t) => t.id !== trackId
           );
           state.hasUnsavedChanges = true;
+          pushCommand(state, new RemoveTrackCommand(trackId, trackData));
         });
       },
 
       reorderTracks: (trackIds) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
+          const oldOrder = state.timeline.tracks.map((t) => t.id);
           const trackMap = new Map(state.timeline.tracks.map((t) => [t.id, t]));
           const reordered: Track[] = [];
           for (const id of trackIds) {
@@ -175,65 +228,106 @@ export const useTimelineStore = create<TimelineStore>()(
             track.order = index;
           });
           state.timeline.tracks = reordered;
+          const newOrder = state.timeline.tracks.map((t) => t.id);
           state.hasUnsavedChanges = true;
+          pushCommand(state, new ReorderTracksCommand(oldOrder, newOrder));
         });
       },
 
       toggleTrackVisibility: (trackId) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
           const track = state.timeline.tracks.find((t) => t.id === trackId);
-          if (track) {
-            track.visible = !track.visible;
-            state.hasUnsavedChanges = true;
-          }
+          if (!track) return;
+          const oldValue = track.visible;
+          track.visible = !track.visible;
+          state.hasUnsavedChanges = true;
+          pushCommand(state, new ToggleTrackVisibilityCommand(trackId, oldValue, track.visible));
         });
       },
 
       toggleTrackLock: (trackId) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
           const track = state.timeline.tracks.find((t) => t.id === trackId);
-          if (track) {
-            track.locked = !track.locked;
-            state.hasUnsavedChanges = true;
+          if (!track) return;
+          const oldValue = track.locked;
+          track.locked = !track.locked;
+          state.hasUnsavedChanges = true;
+          pushCommand(state, new ToggleTrackLockCommand(trackId, oldValue, track.locked));
+        });
+      },
+
+      toggleTrackMute: (trackId) => {
+        set((state) => {
+          if (!state.timeline) return;
+          const track = state.timeline.tracks.find((t) => t.id === trackId);
+          if (!track) return;
+          track.muted = !track.muted;
+          state.hasUnsavedChanges = true;
+        });
+      },
+
+      toggleTrackSolo: (trackId) => {
+        set((state) => {
+          if (!state.timeline) return;
+          const targetTrack = state.timeline.tracks.find((t) => t.id === trackId);
+          if (!targetTrack) return;
+
+          const isCurrentlySoloed =
+            !targetTrack.muted &&
+            state.timeline.tracks
+              .filter((t) => t.id !== trackId && t.type === 'audio')
+              .every((t) => t.muted);
+
+          if (isCurrentlySoloed) {
+            state.timeline.tracks.forEach((t) => {
+              if (t.type === 'audio') t.muted = false;
+            });
+          } else {
+            state.timeline.tracks.forEach((t) => {
+              if (t.type === 'audio') {
+                t.muted = t.id !== trackId;
+              }
+            });
           }
+          state.hasUnsavedChanges = true;
         });
       },
 
       addClip: (trackId, clip) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
           const track = state.timeline.tracks.find((t) => t.id === trackId);
-          if (track) {
-            track.clips.push(clip);
-            state.hasUnsavedChanges = true;
-          }
+          if (!track) return;
+          track.clips.push(clip);
+          state.hasUnsavedChanges = true;
+          pushCommand(state, new AddClipCommand(trackId, deepClone(clip)));
         });
       },
 
       removeClip: (trackId, clipId) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
           const track = state.timeline.tracks.find((t) => t.id === trackId);
-          if (track) {
-            track.clips = track.clips.filter((c) => c.id !== clipId);
-            state.hasUnsavedChanges = true;
-          }
+          if (!track) return;
+          const clip = track.clips.find((c) => c.id === clipId);
+          if (!clip) return;
+          const clipData = deepClone(clip);
+          track.clips = track.clips.filter((c) => c.id !== clipId);
+          state.hasUnsavedChanges = true;
+          pushCommand(state, new RemoveClipCommand(trackId, clipData));
         });
       },
 
       moveClip: (clipId, targetTrackId, newStartFrame) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
           const result = findClipAndTrack(state.timeline, clipId);
           if (!result) return;
           const { clip, track: sourceTrack } = result;
+          const oldTrackId = sourceTrack.id;
+          const oldStartFrame = clip.startInFrames;
           sourceTrack.clips = sourceTrack.clips.filter((c) => c.id !== clipId);
           const targetTrack = state.timeline.tracks.find(
             (t) => t.id === targetTrackId
@@ -242,18 +336,56 @@ export const useTimelineStore = create<TimelineStore>()(
           clip.startInFrames = newStartFrame;
           targetTrack.clips.push(clip);
           state.hasUnsavedChanges = true;
+          pushCommand(
+            state,
+            new MoveClipCommand(clipId, oldTrackId, targetTrackId, oldStartFrame, newStartFrame)
+          );
         });
       },
 
-      resizeClip: (clipId, newDuration) => {
+      moveClipImmediate: (clipId, targetTrackId, newStartFrame) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
+          const result = findClipAndTrack(state.timeline, clipId);
+          if (!result) return;
+          const { clip, track: sourceTrack } = result;
+          sourceTrack.clips = sourceTrack.clips.filter((c) => c.id !== clipId);
+          const targetTrack = state.timeline.tracks.find((t) => t.id === targetTrackId);
+          if (!targetTrack) return;
+          clip.startInFrames = newStartFrame;
+          targetTrack.clips.push(clip);
+        });
+      },
+
+      resizeClip: (clipId, newStartFrame, newDuration) => {
+        set((state) => {
+          if (!state.timeline) return;
           for (const track of state.timeline.tracks) {
             const clip = track.clips.find((c) => c.id === clipId);
             if (clip) {
+              const oldStartFrame = clip.startInFrames;
+              const oldDuration = clip.durationInFrames;
+              clip.startInFrames = newStartFrame;
               clip.durationInFrames = newDuration;
               state.hasUnsavedChanges = true;
+              pushCommand(
+                state,
+                new ResizeClipCommand(clipId, oldStartFrame, newStartFrame, oldDuration, newDuration)
+              );
+              return;
+            }
+          }
+        });
+      },
+
+      resizeClipImmediate: (clipId, newStartFrame, newDuration) => {
+        set((state) => {
+          if (!state.timeline) return;
+          for (const track of state.timeline.tracks) {
+            const clip = track.clips.find((c) => c.id === clipId);
+            if (clip) {
+              clip.startInFrames = newStartFrame;
+              clip.durationInFrames = newDuration;
               return;
             }
           }
@@ -263,12 +395,13 @@ export const useTimelineStore = create<TimelineStore>()(
       updateClipTransform: (clipId, transform) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
+          const before = deepClone(state.timeline);
           for (const track of state.timeline.tracks) {
             const clip = track.clips.find((c) => c.id === clipId);
             if (clip) {
               clip.transform = { ...clip.transform, ...transform };
               state.hasUnsavedChanges = true;
+              pushPatchCommand(state, before);
               return;
             }
           }
@@ -278,12 +411,13 @@ export const useTimelineStore = create<TimelineStore>()(
       addKeyframe: (clipId, keyframe) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
+          const before = deepClone(state.timeline);
           for (const track of state.timeline.tracks) {
             const clip = track.clips.find((c) => c.id === clipId);
             if (clip) {
               clip.keyframes.push(keyframe);
               state.hasUnsavedChanges = true;
+              pushPatchCommand(state, before);
               return;
             }
           }
@@ -293,12 +427,13 @@ export const useTimelineStore = create<TimelineStore>()(
       removeKeyframe: (clipId, keyframeId) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
+          const before = deepClone(state.timeline);
           for (const track of state.timeline.tracks) {
             const clip = track.clips.find((c) => c.id === clipId);
             if (clip) {
               clip.keyframes = clip.keyframes.filter((k) => k.id !== keyframeId);
               state.hasUnsavedChanges = true;
+              pushPatchCommand(state, before);
               return;
             }
           }
@@ -308,14 +443,19 @@ export const useTimelineStore = create<TimelineStore>()(
       updateKeyframe: (clipId, keyframeId, updates) => {
         set((state) => {
           if (!state.timeline) return;
-          saveHistory(state);
           for (const track of state.timeline.tracks) {
             const clip = track.clips.find((c) => c.id === clipId);
             if (clip) {
               const keyframe = clip.keyframes.find((k) => k.id === keyframeId);
               if (keyframe) {
+                const oldKeyframe = deepClone(keyframe);
                 Object.assign(keyframe, updates);
+                const newKeyframe = deepClone(keyframe);
                 state.hasUnsavedChanges = true;
+                pushCommand(
+                  state,
+                  new UpdateKeyframeCommand(clipId, keyframeId, oldKeyframe, newKeyframe)
+                );
               }
               return;
             }
@@ -393,36 +533,44 @@ export const useTimelineStore = create<TimelineStore>()(
 
       undo: () => {
         set((state) => {
-          if (state.history.past.length === 0 || !state.timeline) return;
-          const previous = state.history.past.pop()!;
-          state.history.future.push(deepClone(state.timeline));
-          state.timeline = previous;
+          if (!state.timeline || !commandHistory.canUndo()) return;
+          const command = commandHistory.popUndo()!;
+          commandHistory.pushRedo(command);
+          command.undo(state.timeline);
           state.hasUnsavedChanges = true;
+          state.historyMeta.canUndo = commandHistory.canUndo();
+          state.historyMeta.canRedo = commandHistory.canRedo();
+          state.historyMeta.pastCount = commandHistory.getPastCount();
+          state.historyMeta.futureCount = commandHistory.getFutureCount();
         });
       },
 
       redo: () => {
         set((state) => {
-          if (state.history.future.length === 0 || !state.timeline) return;
-          const next = state.history.future.pop()!;
-          state.history.past.push(deepClone(state.timeline));
-          state.timeline = next;
+          if (!state.timeline || !commandHistory.canRedo()) return;
+          const command = commandHistory.popRedo()!;
+          commandHistory.pushToPast(command);
+          command.execute(state.timeline);
           state.hasUnsavedChanges = true;
+          state.historyMeta.canUndo = commandHistory.canUndo();
+          state.historyMeta.canRedo = commandHistory.canRedo();
+          state.historyMeta.pastCount = commandHistory.getPastCount();
+          state.historyMeta.futureCount = commandHistory.getFutureCount();
         });
       },
 
       canUndo: () => {
-        return get().history.past.length > 0;
+        return commandHistory.canUndo();
       },
 
       canRedo: () => {
-        return get().history.future.length > 0;
+        return commandHistory.canRedo();
       },
 
       clearHistory: () => {
         set((state) => {
-          state.history.past = [];
-          state.history.future = [];
+          commandHistory.clear();
+          state.historyMeta = { canUndo: false, canRedo: false, pastCount: 0, futureCount: 0 };
         });
       },
 
@@ -432,6 +580,119 @@ export const useTimelineStore = create<TimelineStore>()(
           if (progress !== undefined) {
             state.generatorProgress = progress;
           }
+        });
+      },
+
+      setPixelsPerFrame: (value) => {
+        set((state) => {
+          state.pixelsPerFrame = Math.max(0.5, Math.min(20, value));
+        });
+      },
+
+      zoomIn: () => {
+        set((state) => {
+          state.pixelsPerFrame = Math.min(20, state.pixelsPerFrame * 1.25);
+        });
+      },
+
+      zoomOut: () => {
+        set((state) => {
+          state.pixelsPerFrame = Math.max(0.5, state.pixelsPerFrame / 1.25);
+        });
+      },
+
+      setScrollLeft: (value) => {
+        set((state) => {
+          state.scrollLeft = Math.max(0, value);
+        });
+      },
+
+      toggleSnap: () => {
+        set((state) => {
+          state.snapEnabled = !state.snapEnabled;
+        });
+      },
+
+      removeSelectedClip: () => {
+        set((state) => {
+          if (!state.timeline || !state.selectedClipId) return;
+          const clipId = state.selectedClipId;
+          for (const track of state.timeline.tracks) {
+            const clip = track.clips.find((c) => c.id === clipId);
+            if (clip) {
+              const clipData = deepClone(clip);
+              track.clips = track.clips.filter((c) => c.id !== clipId);
+              state.selectedClipId = null;
+              state.hasUnsavedChanges = true;
+              pushCommand(state, new RemoveClipCommand(track.id, clipData));
+              return;
+            }
+          }
+        });
+      },
+
+      splitClip: (clipId, splitFrame) => {
+        set((state) => {
+          if (!state.timeline) return;
+          const before = deepClone(state.timeline);
+
+          for (const track of state.timeline.tracks) {
+            const clipIndex = track.clips.findIndex((c) => c.id === clipId);
+            if (clipIndex === -1) continue;
+
+            const originalClip = track.clips[clipIndex];
+            const clipStart = originalClip.startInFrames;
+            const clipEnd = clipStart + originalClip.durationInFrames;
+
+            if (splitFrame <= clipStart || splitFrame >= clipEnd) return;
+
+            const firstDuration = splitFrame - clipStart;
+            const secondDuration = clipEnd - splitFrame;
+
+            const firstClip: Clip = {
+              id: crypto.randomUUID(),
+              name: originalClip.name,
+              type: originalClip.type,
+              startInFrames: clipStart,
+              durationInFrames: firstDuration,
+              source: originalClip.source,
+              transform: { ...originalClip.transform },
+              style: originalClip.style ? deepClone(originalClip.style) : undefined,
+              keyframes: originalClip.keyframes.map((k) => ({ ...k })),
+              animations: originalClip.animations
+                ? { in: originalClip.animations.in, out: originalClip.animations.out }
+                : undefined,
+              lastModifiedBy: originalClip.lastModifiedBy,
+            };
+
+            const secondClip: Clip = {
+              id: crypto.randomUUID(),
+              name: originalClip.name,
+              type: originalClip.type,
+              startInFrames: splitFrame,
+              durationInFrames: secondDuration,
+              source: originalClip.source,
+              transform: { ...originalClip.transform },
+              style: originalClip.style ? deepClone(originalClip.style) : undefined,
+              keyframes: originalClip.keyframes.map((k) => ({ ...k })),
+              animations: originalClip.animations
+                ? { in: originalClip.animations.in, out: originalClip.animations.out }
+                : undefined,
+              lastModifiedBy: originalClip.lastModifiedBy,
+            };
+
+            track.clips.splice(clipIndex, 1, firstClip, secondClip);
+            state.selectedClipId = null;
+            state.hasUnsavedChanges = true;
+            pushPatchCommand(state, before);
+            return;
+          }
+        });
+      },
+
+      setActiveSnapLines: (lines) => {
+        set((state) => {
+          state.activeSnapLines = lines;
         });
       },
     })),

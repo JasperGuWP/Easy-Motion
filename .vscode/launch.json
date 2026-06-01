@@ -11,9 +11,10 @@
       "request": "launch",
       "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
       "args": [
-        "${workspaceFolder}/apps/electron/dist/main/main/index.js",
+        "${workspaceFolder}/apps/electron/dist/main/index.js",
         "--remote-debugging-port=9223",
-        "--disable-gpu"
+        "--disable-gpu",
+        "--no-sandbox"
       ],
       "env": {
         "NODE_ENV": "development"
@@ -61,9 +62,10 @@
       "request": "launch",
       "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron",
       "args": [
-        "${workspaceFolder}/apps/electron/dist/main/main/index.js",
+        "${workspaceFolder}/apps/electron/dist/main/index.js",
         "--remote-debugging-port=9223",
-        "--disable-gpu"
+        "--disable-gpu",
+        "--no-sandbox"
       ],
       "env": {
         "NODE_ENV": "development"

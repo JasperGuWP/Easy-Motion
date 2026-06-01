@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { IPCResponse } from '@easymotion/shared';
-import { IPC_CHANNELS } from '@easymotion/shared';
+import type { IPCResponse, PreviewServerState, StartServerResult } from '@easymotion/shared';
+import { IPC_CHANNELS, RENDERER_CHANNELS } from '@easymotion/shared';
 
 // ============================================
 // 项目 API
@@ -58,12 +58,25 @@ interface PreviewAPI {
   play(): Promise<IPCResponse<void>>;
   pause(): Promise<IPCResponse<void>>;
   seek(frame: number): Promise<IPCResponse<void>>;
+  startServer(subprojectId: string, projectPath: string): Promise<IPCResponse<StartServerResult>>;
+  stopServer(): Promise<IPCResponse<void>>;
+  getStatus(): Promise<IPCResponse<PreviewServerState>>;
+  onStatusChange(callback: (state: PreviewServerState) => void): () => void;
 }
 
 const previewAPI: PreviewAPI = {
   play: () => ipcRenderer.invoke(IPC_CHANNELS.PREVIEW.PLAY),
   pause: () => ipcRenderer.invoke(IPC_CHANNELS.PREVIEW.PAUSE),
   seek: (frame) => ipcRenderer.invoke(IPC_CHANNELS.PREVIEW.SEEK, { frame }),
+  startServer: (subprojectId, projectPath) =>
+    ipcRenderer.invoke(IPC_CHANNELS.PREVIEW.START_SERVER, { subprojectId, projectPath }),
+  stopServer: () => ipcRenderer.invoke(IPC_CHANNELS.PREVIEW.STOP_SERVER),
+  getStatus: () => ipcRenderer.invoke(IPC_CHANNELS.PREVIEW.GET_STATUS),
+  onStatusChange: (callback): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: PreviewServerState) => callback(state);
+    ipcRenderer.on(RENDERER_CHANNELS.PREVIEW_STATUS_CHANGED, handler);
+    return () => ipcRenderer.removeListener(RENDERER_CHANNELS.PREVIEW_STATUS_CHANGED, handler);
+  },
 };
 
 // ============================================

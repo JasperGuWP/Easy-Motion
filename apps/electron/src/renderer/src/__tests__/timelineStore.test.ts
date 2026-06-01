@@ -48,6 +48,7 @@ describe('timelineStore', () => {
     expect(state.currentFrame).toBe(0);
     expect(state.hasUnsavedChanges).toBe(false);
     expect(state.canUndo()).toBe(false);
+    expect(state.historyMeta.pastCount).toBe(0);
   });
 
   it('adds a track and enables undo', () => {
@@ -148,6 +149,90 @@ describe('timelineStore', () => {
     for (let i = 0; i < 55; i++) {
       useTimelineStore.getState().addTrack('text', `Track ${i}`);
     }
-    expect(useTimelineStore.getState().history.past.length).toBeLessThanOrEqual(50);
+    expect(useTimelineStore.getState().historyMeta.pastCount).toBeLessThanOrEqual(50);
+  });
+
+  it('zooms in and out', () => {
+    useTimelineStore.getState().zoomIn();
+    expect(useTimelineStore.getState().pixelsPerFrame).toBeGreaterThan(2);
+
+    useTimelineStore.getState().zoomOut();
+    expect(useTimelineStore.getState().pixelsPerFrame).toBeCloseTo(2, 1);
+  });
+
+  it('clamps zoom to min/max', () => {
+    const store = useTimelineStore.getState();
+    store.setPixelsPerFrame(0.1);
+    expect(useTimelineStore.getState().pixelsPerFrame).toBe(0.5);
+
+    store.setPixelsPerFrame(100);
+    expect(useTimelineStore.getState().pixelsPerFrame).toBe(20);
+  });
+
+  it('toggles snap', () => {
+    const store = useTimelineStore.getState();
+    expect(store.snapEnabled).toBe(true);
+    store.toggleSnap();
+    expect(useTimelineStore.getState().snapEnabled).toBe(false);
+  });
+
+  it('toggles track mute', () => {
+    useTimelineStore.getState().addTrack('audio', 'Audio Track');
+    const state = useTimelineStore.getState();
+    const audioTrack = state.timeline?.tracks.find((t) => t.type === 'audio');
+    expect(audioTrack).toBeDefined();
+
+    const audioTrackId = audioTrack!.id;
+    expect(audioTrack!.muted).toBeFalsy();
+
+    useTimelineStore.getState().toggleTrackMute(audioTrackId);
+    expect(useTimelineStore.getState().timeline?.tracks.find((t) => t.id === audioTrackId)?.muted).toBe(true);
+
+    useTimelineStore.getState().toggleTrackMute(audioTrackId);
+    expect(useTimelineStore.getState().timeline?.tracks.find((t) => t.id === audioTrackId)?.muted).toBe(false);
+  });
+
+  it('toggles track solo: mutes all other audio tracks', () => {
+    useTimelineStore.getState().addTrack('audio', 'Audio 1');
+    useTimelineStore.getState().addTrack('audio', 'Audio 2');
+    useTimelineStore.getState().addTrack('audio', 'Audio 3');
+    const state = useTimelineStore.getState();
+    const audioTracks = state.timeline?.tracks.filter((t) => t.type === 'audio') ?? [];
+    expect(audioTracks).toHaveLength(3);
+
+    const soloTrackId = audioTracks[0].id;
+    useTimelineStore.getState().toggleTrackSolo(soloTrackId);
+
+    const afterSolo = useTimelineStore.getState().timeline?.tracks.filter((t) => t.type === 'audio') ?? [];
+    expect(afterSolo[0].muted).toBe(false);
+    expect(afterSolo[1].muted).toBe(true);
+    expect(afterSolo[2].muted).toBe(true);
+  });
+
+  it('toggles track solo off: unmutes all audio tracks', () => {
+    useTimelineStore.getState().addTrack('audio', 'Audio 1');
+    useTimelineStore.getState().addTrack('audio', 'Audio 2');
+    const state = useTimelineStore.getState();
+    const audioTracks = state.timeline?.tracks.filter((t) => t.type === 'audio') ?? [];
+    const soloTrackId = audioTracks[0].id;
+
+    useTimelineStore.getState().toggleTrackSolo(soloTrackId);
+    useTimelineStore.getState().toggleTrackSolo(soloTrackId);
+
+    const afterUnsolo = useTimelineStore.getState().timeline?.tracks.filter((t) => t.type === 'audio') ?? [];
+    expect(afterUnsolo.every((t) => t.muted !== true)).toBe(true);
+  });
+
+  it('undo restores mute state', () => {
+    useTimelineStore.getState().addTrack('audio', 'Audio Track');
+    const state = useTimelineStore.getState();
+    const audioTrack = state.timeline?.tracks.find((t) => t.type === 'audio');
+    const audioTrackId = audioTrack!.id;
+
+    useTimelineStore.getState().toggleTrackMute(audioTrackId);
+    expect(useTimelineStore.getState().timeline?.tracks.find((t) => t.id === audioTrackId)?.muted).toBe(true);
+
+    useTimelineStore.getState().undo();
+    expect(useTimelineStore.getState().timeline?.tracks.find((t) => t.id === audioTrackId)?.muted).toBeFalsy();
   });
 });

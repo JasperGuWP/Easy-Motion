@@ -41,6 +41,9 @@ importers:
       immer:
         specifier: ^11.1.8
         version: 11.1.8
+      vite:
+        specifier: ^5.2.0
+        version: 5.4.21(@types/node@20.19.41)
       zustand:
         specifier: ^5.0.14
         version: 5.0.14(@types/react@18.3.29)(immer@11.1.8)(react@18.3.1)
@@ -69,9 +72,6 @@ importers:
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
-      vite:
-        specifier: ^5.2.0
-        version: 5.4.21(@types/node@20.19.41)
       vitest:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@20.19.41)
