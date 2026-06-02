@@ -21,3 +21,6 @@ Thumbs.db
 # Runtime
 tmp/
 *.pid
+
+#omo
+.omo/
