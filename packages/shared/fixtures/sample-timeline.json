@@ -1,0 +1,81 @@
+{
+  "version": "1.0",
+  "fps": 30,
+  "durationInFrames": 90,
+  "width": 1280,
+  "height": 720,
+  "tracks": [
+    {
+      "id": "track-bg",
+      "name": "背景形状",
+      "type": "shape",
+      "order": 0,
+      "visible": true,
+      "locked": false,
+      "muted": false,
+      "clips": [
+        {
+          "id": "clip-bg",
+          "type": "shape",
+          "name": "背景矩形",
+          "startInFrames": 0,
+          "durationInFrames": 90,
+          "source": {
+            "kind": "inline",
+            "shape": "rect",
+            "width": 1280,
+            "height": 720
+          },
+          "transform": {
+            "position": { "x": 640, "y": 360 },
+            "scale": 1,
+            "rotation": 0,
+            "opacity": 1
+          },
+          "style": {
+            "fillColor": "#1a1a2e"
+          },
+          "keyframes": []
+        }
+      ]
+    },
+    {
+      "id": "track-title",
+      "name": "标题文字",
+      "type": "text",
+      "order": 1,
+      "visible": true,
+      "locked": false,
+      "muted": false,
+      "clips": [
+        {
+          "id": "clip-title",
+          "type": "text",
+          "name": "主标题",
+          "startInFrames": 15,
+          "durationInFrames": 60,
+          "source": {
+            "kind": "inline",
+            "content": "Hello EasyMotion"
+          },
+          "transform": {
+            "position": { "x": 640, "y": 360 },
+            "scale": 1,
+            "rotation": 0,
+            "opacity": 1
+          },
+          "style": {
+            "fontFamily": "Inter, sans-serif",
+            "fontSize": 56,
+            "color": "#f8fafc",
+            "textAlign": "center"
+          },
+          "keyframes": [],
+          "animations": {
+            "in": { "type": "fade", "durationInFrames": 15 }
+          }
+        }
+      ]
+    }
+  ]
+}

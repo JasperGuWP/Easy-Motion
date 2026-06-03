@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "name": "未命名项目",
+  "createdAt": 0,
+  "modifiedAt": 0,
+  "settings": {
+    "defaultResolution": { "width": 1920, "height": 1080 },
+    "defaultFps": 30,
+    "defaultDurationInFrames": 300
+  },
+  "subprojects": [
+    {
+      "id": "sub-default",
+      "name": "默认片段",
+      "path": "subprojects/default",
+      "createdAt": 0,
+      "modifiedAt": 0
+    }
+  ],
+  "remotionVersion": "4.0.269"
+}

@@ -7,7 +7,11 @@
   "scripts": {
     "dev": "concurrently \"pnpm --filter @easymotion/electron dev\" \"pnpm --filter @easymotion/python dev\"",
     "dev:electron": "pnpm --filter @easymotion/electron dev",
-    "dev:python": "pnpm --filter @easymotion/python dev"
+    "dev:python": "pnpm --filter @easymotion/python dev",
+    "test:m1": "pnpm --filter @easymotion/electron test:m1",
+    "test:m2": "pnpm --filter @easymotion/electron test:m2",
+    "test:m3": "pnpm --filter @easymotion/electron test:m3",
+    "test": "pnpm --filter @easymotion/electron test"
   },
   "devDependencies": {
     "concurrently": "^9.2.0"
