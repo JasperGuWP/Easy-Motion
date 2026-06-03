@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "id": "sub-default",
+  "name": "默认片段",
+  "timeline": {
+    "version": "1.0",
+    "fps": 30,
+    "durationInFrames": 300,
+    "width": 1920,
+    "height": 1080,
+    "tracks": []
+  },
+  "conversation": {
+    "messages": []
+  },
+  "assets": []
+}

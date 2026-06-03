@@ -1,5 +1,11 @@
 const { app, BrowserWindow } = require("electron");
 const path = require("node:path");
+const { registerProjectHandlers } = require("./ipc-handlers/project");
+const { registerTimelineHandlers } = require("./ipc-handlers/timeline");
+const { registerPreviewHandlers } = require("./ipc-handlers/preview");
+const previewService = require("./services/preview-service");
+const { ensureDir } = require("./services/file-service");
+const { getConfigDir } = require("./utils/paths");
 
 const createWindow = () => {
   const win = new BrowserWindow({
@@ -16,6 +22,10 @@ const createWindow = () => {
 };
 
 app.whenReady().then(() => {
+  ensureDir(getConfigDir());
+  registerProjectHandlers();
+  registerTimelineHandlers();
+  registerPreviewHandlers();
   createWindow();
 
   app.on("activate", () => {
@@ -25,4 +35,8 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
+});
+
+app.on("before-quit", async () => {
+  await previewService.stopPreview();
 });
