@@ -14,7 +14,7 @@ const LAYER_COMPONENT_MAP = {
   shape: "ShapeLayer",
   video: "VideoLayer",
   audio: "AudioLayer",
-  chart: "ChartLayer"
+  chart: "ChartLayer",
 };
 
 function getLayerComponent(trackType) {
@@ -31,24 +31,24 @@ function buildClipProps(track, clip) {
     transform: clip.transform,
     keyframes: clip.keyframes ?? [],
     inAnimation: clip.animations?.in,
-    outAnimation: clip.animations?.out
+    outAnimation: clip.animations?.out,
   };
 
   if (track.type === "text") {
     return {
       ...base,
       source: clip.source,
-      style: clip.style
+      style: clip.style,
     };
   }
 
   if (track.type === "image" || track.type === "video") {
     const assetPath =
-      clip.source?.kind === "asset" ? clip.source.path : clip.source?.path ?? "";
+      clip.source?.kind === "asset" ? clip.source.path : (clip.source?.path ?? "");
     return {
       ...base,
       src: assetPath,
-      style: clip.style ?? {}
+      style: clip.style ?? {},
     };
   }
 
@@ -56,7 +56,7 @@ function buildClipProps(track, clip) {
     return {
       ...base,
       source: clip.source,
-      style: clip.style ?? {}
+      style: clip.style ?? {},
     };
   }
 
@@ -67,5 +67,5 @@ module.exports = {
   escapeJsxString,
   renderJsxProps,
   getLayerComponent,
-  buildClipProps
+  buildClipProps,
 };

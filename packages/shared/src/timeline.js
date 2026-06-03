@@ -1,4 +1,13 @@
-const TRACK_TYPES = ["text", "image", "video", "audio", "shape", "chart", "animation", "group"];
+const TRACK_TYPES = [
+  "text",
+  "image",
+  "video",
+  "audio",
+  "shape",
+  "chart",
+  "animation",
+  "group",
+];
 
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -28,7 +37,10 @@ function validateTimeline(timeline) {
       throw new Error(`track ${track.id} clips must be an array`);
     }
     for (const clip of track.clips) {
-      if (typeof clip.startInFrames !== "number" || typeof clip.durationInFrames !== "number") {
+      if (
+        typeof clip.startInFrames !== "number" ||
+        typeof clip.durationInFrames !== "number"
+      ) {
         throw new Error(`clip ${clip.id} frame range invalid`);
       }
       if (clip.startInFrames + clip.durationInFrames > timeline.durationInFrames) {
@@ -42,5 +54,5 @@ function validateTimeline(timeline) {
 
 module.exports = {
   TRACK_TYPES,
-  validateTimeline
+  validateTimeline,
 };

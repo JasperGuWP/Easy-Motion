@@ -26,7 +26,7 @@ function generateRemotionCode({ remotionSrcDir, timeline }) {
     durationInFrames: timeline.durationInFrames,
     fps: timeline.fps,
     width: timeline.width,
-    height: timeline.height
+    height: timeline.height,
   };
 
   writeFile(rootPath, rootCode);
@@ -34,10 +34,10 @@ function generateRemotionCode({ remotionSrcDir, timeline }) {
   writeFile(previewConfigPath, previewConfig);
 
   return {
-    files: [rootPath, mainSequencePath, previewConfigPath]
+    files: [rootPath, mainSequencePath, previewConfigPath],
   };
 }
 
 module.exports = {
-  generateRemotionCode
+  generateRemotionCode,
 };

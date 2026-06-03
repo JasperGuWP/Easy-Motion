@@ -5,15 +5,30 @@
   "description": "EasyMotion monorepo workspace",
   "packageManager": "pnpm@10.13.1",
   "scripts": {
-    "dev": "concurrently \"pnpm --filter @easymotion/electron dev\" \"pnpm --filter @easymotion/python dev\"",
-    "dev:electron": "pnpm --filter @easymotion/electron dev",
+    "dev": "concurrently -n renderer,electron -c blue,magenta \"pnpm dev:renderer\" \"pnpm dev:electron\"",
+    "dev:all": "concurrently -k -n renderer,electron,python -c blue,magenta,green \"pnpm dev:renderer\" \"pnpm dev:electron\" \"pnpm dev:python\"",
+    "dev:renderer": "pnpm --filter @easymotion/electron dev:renderer",
+    "dev:electron": "pnpm --filter @easymotion/electron dev:electron",
     "dev:python": "pnpm --filter @easymotion/python dev",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"apps/**/*.{js,ts,tsx,cjs,json}\" \"packages/**/*.{js,json}\" \"eslint.config.mjs\" \".prettierrc.json\" \"package.json\" \"pnpm-workspace.yaml\" \".vscode/*.json\"",
+    "format:check": "prettier --check \"apps/**/*.{js,ts,tsx,cjs,json}\" \"packages/**/*.{js,json}\" \"eslint.config.mjs\" \".prettierrc.json\" \"package.json\" \"pnpm-workspace.yaml\" \".vscode/*.json\"",
     "test:m1": "pnpm --filter @easymotion/electron test:m1",
     "test:m2": "pnpm --filter @easymotion/electron test:m2",
     "test:m3": "pnpm --filter @easymotion/electron test:m3",
     "test": "pnpm --filter @easymotion/electron test"
   },
   "devDependencies": {
-    "concurrently": "^9.2.0"
+    "@eslint/js": "^9.28.0",
+    "concurrently": "^9.2.0",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.2.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.33.1"
   }
 }

@@ -20,5 +20,5 @@ function getTemplatesDir() {
 module.exports = {
   getConfigDir,
   getDefaultProjectsParentDir,
-  getTemplatesDir
+  getTemplatesDir,
 };

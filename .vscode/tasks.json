@@ -1,0 +1,281 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "PYTHONIOENCODING": "utf-8",
+      "PYTHONUTF8": "1"
+    }
+  },
+  "tasks": [
+    {
+      "label": "vite: dev server",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["dev:renderer"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "(Local:|5173|ready in \\d+ ms)"
+        }
+      }
+    },
+    {
+      "label": "wait: electron cdp 9222",
+      "type": "shell",
+      "command": "node",
+      "args": ["${workspaceFolder}/apps/electron/scripts/wait-cdp.cjs"],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/electron"
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "wait: vite 5173",
+      "type": "shell",
+      "command": "node",
+      "args": ["${workspaceFolder}/apps/electron/scripts/wait-vite.cjs"],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/electron",
+        "env": {
+          "VITE_DEV_URL": "http-get://127.0.0.1:5173"
+        }
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "ensure: vite for debug",
+      "type": "shell",
+      "command": "node",
+      "args": ["${workspaceFolder}/apps/electron/scripts/ensure-vite-for-debug.cjs"],
+      "options": {
+        "cwd": "${workspaceFolder}/apps/electron"
+      },
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "debug: prepare (vite + wait)",
+      "dependsOn": ["ensure: vite for debug"],
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: dev",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["dev"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: dev:all",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["dev:all"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: dev:renderer",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["dev:renderer"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: dev:electron",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["dev:electron"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "dependsOn": ["debug: prepare (vite + wait)"],
+      "dependsOrder": "sequence",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: dev:python",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["dev:python"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "problemMatcher": {
+        "owner": "python",
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Uvicorn running",
+          "endsPattern": "Application startup complete"
+        }
+      }
+    },
+    {
+      "label": "pnpm: lint",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["lint"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "pnpm: test:m1",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["test:m1"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: test:m2",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["test:m2"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: test:m3",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["test:m3"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "pnpm: test",
+      "type": "shell",
+      "command": "pnpm",
+      "args": ["test"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "uv: install python deps",
+      "type": "shell",
+      "windows": {
+        "command": "${workspaceFolder}\\apps\\python\\.venv\\Scripts\\pip.exe",
+        "args": ["install", "-r", "requirements.txt"],
+        "options": {
+          "cwd": "${workspaceFolder}\\apps\\python"
+        }
+      },
+      "linux": {
+        "command": "${workspaceFolder}/apps/python/.venv/bin/pip",
+        "args": ["install", "-r", "requirements.txt"],
+        "options": {
+          "cwd": "${workspaceFolder}/apps/python"
+        }
+      },
+      "osx": {
+        "command": "${workspaceFolder}/apps/python/.venv/bin/pip",
+        "args": ["install", "-r", "requirements.txt"],
+        "options": {
+          "cwd": "${workspaceFolder}/apps/python"
+        }
+      },
+      "presentation": {
+        "reveal": "always"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

@@ -14,7 +14,7 @@ let previewState = {
   url: null,
   port: null,
   remotionDir: null,
-  status: "idle"
+  status: "idle",
 };
 
 function broadcastLog(line, phase = "preview") {
@@ -44,7 +44,7 @@ function createNpmProcess(args, cwd) {
       cwd,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env
+      env,
     });
   }
 
@@ -52,7 +52,7 @@ function createNpmProcess(args, cwd) {
     cwd,
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
-    env
+    env,
   });
 }
 
@@ -88,7 +88,11 @@ async function ensureRemotionDeps(remotionDir) {
 
   previewState.status = "installing";
   broadcastLog("首次预览需要安装 Remotion 依赖，请稍候（约 1–5 分钟）...", "install");
-  await spawnLogged("install", ["install", "--no-fund", "--loglevel=info"], remotionDir);
+  await spawnLogged(
+    "install",
+    ["install", "--no-fund", "--loglevel=info"],
+    remotionDir
+  );
 }
 
 function waitForHttp(url, timeoutMs = 120000) {
@@ -164,7 +168,7 @@ async function startPreview(projectRoot, subprojectPath = "subprojects/default")
     url: previewUrl,
     port,
     remotionDir,
-    status: "running"
+    status: "running",
   };
 
   broadcastLog("预览服务已就绪", "vite");
@@ -172,7 +176,7 @@ async function startPreview(projectRoot, subprojectPath = "subprojects/default")
   return {
     url: previewUrl,
     port,
-    channel: PREVIEW_CHANNEL
+    channel: PREVIEW_CHANNEL,
   };
 }
 
@@ -185,7 +189,7 @@ async function stopPreview() {
     url: null,
     port: null,
     remotionDir: null,
-    status: "idle"
+    status: "idle",
   };
 }
 
@@ -193,7 +197,10 @@ function getPreviewState() {
   return { ...previewState, channel: PREVIEW_CHANNEL };
 }
 
-async function prepareAndStartPreview(projectRoot, subprojectPath = "subprojects/default") {
+async function prepareAndStartPreview(
+  projectRoot,
+  subprojectPath = "subprojects/default"
+) {
   const remotionSrc = timelineService.getRemotionSrcDir(projectRoot, subprojectPath);
   const rootTsx = path.join(remotionSrc, "Root.tsx");
   if (!fs.existsSync(rootTsx)) {
@@ -209,5 +216,5 @@ module.exports = {
   stopPreview,
   getPreviewState,
   prepareAndStartPreview,
-  ensureRemotionDeps
+  ensureRemotionDeps,
 };

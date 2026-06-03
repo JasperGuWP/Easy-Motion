@@ -5,12 +5,12 @@ const {
   readJsonFile,
   ensureDir,
   copyDirRecursive,
-  removeDirRecursive
+  removeDirRecursive,
 } = require("./file-service");
 const {
   getConfigDir,
   getDefaultProjectsParentDir,
-  getTemplatesDir
+  getTemplatesDir,
 } = require("../utils/paths");
 
 const RECENT_FILE = "recent-projects.json";
@@ -57,7 +57,7 @@ function stampTemplateProject(projectRoot, config) {
   project.modifiedAt = now;
   project.settings.defaultResolution = {
     width: config.width ?? 1920,
-    height: config.height ?? 1080
+    height: config.height ?? 1080,
   };
   project.settings.defaultFps = config.fps ?? 30;
   project.settings.defaultDurationInFrames = config.durationInFrames ?? 300;
@@ -101,12 +101,12 @@ async function createProject(config) {
     name: stamped.project.name,
     path: projectRoot,
     createdAt: stamped.now,
-    modifiedAt: stamped.now
+    modifiedAt: stamped.now,
   };
 
   currentProject = {
     path: projectRoot,
-    data: stamped.project
+    data: stamped.project,
   };
 
   await upsertRecent(summary);
@@ -130,7 +130,7 @@ async function openProject(projectPath) {
     name: project.name,
     path: projectPath,
     createdAt: project.createdAt,
-    modifiedAt: now
+    modifiedAt: now,
   });
 
   return { project, path: projectPath };
@@ -149,7 +149,7 @@ async function saveCurrentProject() {
     name: currentProject.data.name,
     path: currentProject.path,
     createdAt: currentProject.data.createdAt,
-    modifiedAt: now
+    modifiedAt: now,
   });
   return { project: currentProject.data, path: currentProject.path };
 }
@@ -184,5 +184,5 @@ module.exports = {
   saveCurrentProject,
   listRecentProjects,
   deleteProject,
-  getCurrentProject
+  getCurrentProject,
 };

@@ -7,18 +7,35 @@ const previewService = require("./services/preview-service");
 const { ensureDir } = require("./services/file-service");
 const { getConfigDir } = require("./utils/paths");
 
+const RENDERER_DEV_URL = process.env.ELECTRON_RENDERER_URL || "http://127.0.0.1:5173";
+
 const createWindow = () => {
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: 1400,
+    height: 900,
+    minWidth: 1200,
+    minHeight: 700,
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
-      nodeIntegration: false
-    }
+      nodeIntegration: false,
+    },
   });
 
-  win.loadFile(path.join(__dirname, "../renderer/index.html"));
+  const useLegacy =
+    process.env.EASY_MOTION_LEGACY_UI === "1" || process.argv.includes("--legacy-ui");
+
+  if (useLegacy) {
+    win.loadFile(path.join(__dirname, "../renderer/legacy/index.html"));
+    return;
+  }
+
+  const isDev = !app.isPackaged;
+  if (isDev) {
+    win.loadURL(RENDERER_DEV_URL);
+  } else {
+    win.loadFile(path.join(__dirname, "../../dist/renderer/index.html"));
+  }
 };
 
 app.whenReady().then(() => {

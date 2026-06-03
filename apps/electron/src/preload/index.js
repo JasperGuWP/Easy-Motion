@@ -14,13 +14,13 @@ contextBridge.exposeInMainWorld("easyMotion", {
     delete: (path, options) => invoke("main:project:delete", { path, options }),
     getCurrent: () => invoke("main:project:getCurrent"),
     pickParentDirectory: () => invoke("main:project:pickParentDirectory"),
-    pickProjectDirectory: () => invoke("main:project:pickProjectDirectory")
+    pickProjectDirectory: () => invoke("main:project:pickProjectDirectory"),
   },
   timeline: {
     load: (payload) => invoke("main:timeline:load", payload),
     save: (payload) => invoke("main:timeline:save", payload),
     applySample: (payload) => invoke("main:timeline:applySample", payload),
-    generate: (payload) => invoke("main:timeline:generate", payload)
+    generate: (payload) => invoke("main:timeline:generate", payload),
   },
   preview: {
     start: (payload) => invoke("main:preview:start", payload),
@@ -28,6 +28,6 @@ contextBridge.exposeInMainWorld("easyMotion", {
     getState: () => invoke("main:preview:getState"),
     onLog: (callback) => {
       ipcRenderer.on("renderer:preview:log", (_event, data) => callback(data));
-    }
-  }
+    },
+  },
 });

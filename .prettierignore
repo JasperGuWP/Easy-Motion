@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+out
+coverage
+pnpm-lock.yaml
+*.min.js
+apps/electron/resources/templates
+design-system/**/pages
+.cursor
+docs/
+design-system/
+README.md

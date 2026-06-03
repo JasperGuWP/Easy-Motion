@@ -1,5 +1,4 @@
 const { ipcMain, dialog } = require("electron");
-const path = require("node:path");
 const projectService = require("../services/project-service");
 const { getDefaultProjectsParentDir } = require("../utils/paths");
 
@@ -12,8 +11,8 @@ function wrap(handler) {
       return {
         success: false,
         error: {
-          message: error.message || "unknown error"
-        }
+          message: error.message || "unknown error",
+        },
       };
     }
   };
@@ -35,20 +34,26 @@ function registerProjectHandlers() {
     wrap(() => projectService.saveCurrentProject())
   );
 
-  ipcMain.handle("main:project:listRecent", wrap(() => projectService.listRecentProjects()));
+  ipcMain.handle(
+    "main:project:listRecent",
+    wrap(() => projectService.listRecentProjects())
+  );
 
   ipcMain.handle(
     "main:project:delete",
     wrap((payload) => projectService.deleteProject(payload.path, payload.options))
   );
 
-  ipcMain.handle("main:project:getCurrent", wrap(() => projectService.getCurrentProject()));
+  ipcMain.handle(
+    "main:project:getCurrent",
+    wrap(() => projectService.getCurrentProject())
+  );
 
   ipcMain.handle("main:project:pickParentDirectory", async () => {
     const result = await dialog.showOpenDialog({
       title: "选择项目保存位置",
       defaultPath: getDefaultProjectsParentDir(),
-      properties: ["openDirectory", "createDirectory"]
+      properties: ["openDirectory", "createDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) {
       return { success: true, data: { path: null } };
@@ -60,7 +65,7 @@ function registerProjectHandlers() {
     const result = await dialog.showOpenDialog({
       title: "打开项目文件夹",
       defaultPath: getDefaultProjectsParentDir(),
-      properties: ["openDirectory"]
+      properties: ["openDirectory"],
     });
     if (result.canceled || result.filePaths.length === 0) {
       return { success: true, data: { path: null } };

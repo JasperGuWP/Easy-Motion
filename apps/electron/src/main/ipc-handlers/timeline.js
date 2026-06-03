@@ -11,7 +11,7 @@ function wrap(handler) {
     } catch (error) {
       return {
         success: false,
-        error: { message: error.message || "unknown error" }
+        error: { message: error.message || "unknown error" },
       };
     }
   };
@@ -39,7 +39,11 @@ function registerTimelineHandlers() {
     "main:timeline:save",
     wrap(async (payload) => {
       const projectPath = getProjectRoot(payload);
-      return timelineService.saveTimeline(projectPath, payload.timeline, payload?.subprojectPath);
+      return timelineService.saveTimeline(
+        projectPath,
+        payload.timeline,
+        payload?.subprojectPath
+      );
     })
   );
 

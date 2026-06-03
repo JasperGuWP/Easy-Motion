@@ -1,0 +1,31 @@
+/** 与 remotion preview-entry.tsx 保持一致 */
+export const PREVIEW_CHANNEL = "easymotion-preview";
+
+export type PreviewOutbound =
+  | { channel: typeof PREVIEW_CHANNEL; type: "PLAY" }
+  | { channel: typeof PREVIEW_CHANNEL; type: "PAUSE" }
+  | { channel: typeof PREVIEW_CHANNEL; type: "SEEK"; frame: number };
+
+export type PreviewInbound =
+  | { channel: typeof PREVIEW_CHANNEL; type: "READY" }
+  | { channel: typeof PREVIEW_CHANNEL; type: "FRAME_CHANGE"; frame: number };
+
+export function postPreview(
+  target: Window | null | undefined,
+  message: PreviewOutbound
+) {
+  target?.postMessage(message, "*");
+}
+
+export function parsePreviewMessage(data: unknown): PreviewInbound | null {
+  if (!data || typeof data !== "object") return null;
+  const msg = data as Record<string, unknown>;
+  if (msg.channel !== PREVIEW_CHANNEL) return null;
+  if (msg.type === "READY") {
+    return { channel: PREVIEW_CHANNEL, type: "READY" };
+  }
+  if (msg.type === "FRAME_CHANGE" && typeof msg.frame === "number") {
+    return { channel: PREVIEW_CHANNEL, type: "FRAME_CHANGE", frame: msg.frame };
+  }
+  return null;
+}

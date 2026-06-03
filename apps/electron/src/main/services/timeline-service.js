@@ -9,11 +9,18 @@ function getSubprojectDir(projectRoot, subprojectRelativePath = "subprojects/def
 }
 
 function getSubprojectJsonPath(projectRoot, subprojectRelativePath) {
-  return path.join(getSubprojectDir(projectRoot, subprojectRelativePath), "subproject.json");
+  return path.join(
+    getSubprojectDir(projectRoot, subprojectRelativePath),
+    "subproject.json"
+  );
 }
 
 function getRemotionSrcDir(projectRoot, subprojectRelativePath) {
-  return path.join(getSubprojectDir(projectRoot, subprojectRelativePath), "remotion", "src");
+  return path.join(
+    getSubprojectDir(projectRoot, subprojectRelativePath),
+    "remotion",
+    "src"
+  );
 }
 
 function loadTimeline(projectRoot, subprojectRelativePath = "subprojects/default") {
@@ -23,7 +30,11 @@ function loadTimeline(projectRoot, subprojectRelativePath = "subprojects/default
   return subproject.timeline;
 }
 
-async function saveTimeline(projectRoot, timeline, subprojectRelativePath = "subprojects/default") {
+async function saveTimeline(
+  projectRoot,
+  timeline,
+  subprojectRelativePath = "subprojects/default"
+) {
   validateTimeline(timeline);
   const subprojectPath = getSubprojectJsonPath(projectRoot, subprojectRelativePath);
   const subproject = readJsonFile(subprojectPath);
@@ -32,7 +43,10 @@ async function saveTimeline(projectRoot, timeline, subprojectRelativePath = "sub
   return timeline;
 }
 
-function applySampleTimeline(projectRoot, subprojectRelativePath = "subprojects/default") {
+function applySampleTimeline(
+  projectRoot,
+  subprojectRelativePath = "subprojects/default"
+) {
   const samplePath = path.join(
     __dirname,
     "../../../../../packages/shared/fixtures/sample-timeline.json"
@@ -45,7 +59,10 @@ function applySampleTimeline(projectRoot, subprojectRelativePath = "subprojects/
   return timeline;
 }
 
-function generateForSubproject(projectRoot, subprojectRelativePath = "subprojects/default") {
+function generateForSubproject(
+  projectRoot,
+  subprojectRelativePath = "subprojects/default"
+) {
   const timeline = loadTimeline(projectRoot, subprojectRelativePath);
   const remotionSrcDir = getRemotionSrcDir(projectRoot, subprojectRelativePath);
   if (!fs.existsSync(remotionSrcDir)) {
@@ -59,5 +76,5 @@ module.exports = {
   saveTimeline,
   applySampleTimeline,
   generateForSubproject,
-  getRemotionSrcDir
+  getRemotionSrcDir,
 };

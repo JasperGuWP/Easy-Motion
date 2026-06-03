@@ -5,7 +5,7 @@ const {
   atomicWriteJson,
   readJsonFile,
   ensureDir,
-  removeDirRecursive
+  removeDirRecursive,
 } = require("../src/main/services/file-service");
 
 const tmpRoot = path.join(os.tmpdir(), `easymotion-test-${Date.now()}`);

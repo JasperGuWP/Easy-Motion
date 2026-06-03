@@ -10,7 +10,7 @@ function wrap(handler) {
     } catch (error) {
       return {
         success: false,
-        error: { message: error.message || "unknown error" }
+        error: { message: error.message || "unknown error" },
       };
     }
   };
@@ -30,13 +30,22 @@ function registerPreviewHandlers() {
     "main:preview:start",
     wrap(async (payload) => {
       const projectPath = getProjectRoot(payload);
-      return previewService.prepareAndStartPreview(projectPath, payload?.subprojectPath);
+      return previewService.prepareAndStartPreview(
+        projectPath,
+        payload?.subprojectPath
+      );
     })
   );
 
-  ipcMain.handle("main:preview:stop", wrap(async () => previewService.stopPreview()));
+  ipcMain.handle(
+    "main:preview:stop",
+    wrap(async () => previewService.stopPreview())
+  );
 
-  ipcMain.handle("main:preview:getState", wrap(() => previewService.getPreviewState()));
+  ipcMain.handle(
+    "main:preview:getState",
+    wrap(() => previewService.getPreviewState())
+  );
 }
 
 module.exports = { registerPreviewHandlers };

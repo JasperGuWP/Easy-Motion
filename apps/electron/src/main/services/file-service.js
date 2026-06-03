@@ -61,5 +61,5 @@ module.exports = {
   readJsonFile,
   atomicWriteJson,
   copyDirRecursive,
-  removeDirRecursive
+  removeDirRecursive,
 };

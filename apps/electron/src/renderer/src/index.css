@@ -1,0 +1,45 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 210 40% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 210 40% 98%;
+    --primary: 347 77% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 20% 15%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 240 20% 15%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 240 20% 15%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --border: 240 15% 25%;
+    --input: 240 15% 25%;
+    --ring: 173 80% 40%;
+    --radius: 0.5rem;
+  }
+
+  body {
+    @apply m-0 min-h-screen bg-em-bg font-sans text-em-text antialiased;
+  }
+
+  * {
+    @apply border-em-border;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

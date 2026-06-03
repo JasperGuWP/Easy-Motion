@@ -6,7 +6,7 @@ const {
   openProject,
   saveCurrentProject,
   listRecentProjects,
-  deleteProject
+  deleteProject,
 } = require("../src/main/services/project-service");
 
 const parentPath = path.join(os.tmpdir(), `easymotion-proj-test-${Date.now()}`);
@@ -20,7 +20,7 @@ async function run() {
     width: 1280,
     height: 720,
     fps: 24,
-    durationInFrames: 120
+    durationInFrames: 120,
   });
 
   if (!fs.existsSync(path.join(created.path, "project.json"))) {

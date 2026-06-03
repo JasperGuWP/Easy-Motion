@@ -1,26 +1,80 @@
+# Dependencies
 node_modules/
+**/node_modules/
+
+# Build & bundler outputs
 dist/
 build/
+out/
+release/
+dist-electron/
 .turbo/
 .cache/
 coverage/
+*.tsbuildinfo
+
+# Vite / tooling caches (may live under node_modules)
+**/.vite/
+.eslintcache
+
+# Logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+secrets.json
+*.pem
+*.key
 
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 .venv/
 venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.Python
 
-# IDE / OS
+# IDE / editor (share team debug config only)
 .DS_Store
 Thumbs.db
+desktop.ini
 .idea/
-.vscode/
+*.suo
+*.user
+*.swp
+*~
 
-# Runtime
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Cursor: optional project skills; ignore local agent state
+.cursor/*
+!.cursor/skills/
+!.cursor/skills/**
+.cursor/skills/**/__pycache__/
+
+# Runtime / local app data
 tmp/
+temp/
 *.pid
-
-#omo
 .omo/
+
+# Design tokens: commit MASTER; ignore generated page overrides from ui-ux-pro-max
+design-system/**/pages/
+
+# Remotion / preview artifacts inside template projects
+**/remotion/.cache/
+**/remotion/build/
