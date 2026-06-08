@@ -126,6 +126,8 @@ function generateForSubproject(
   if (!fs.existsSync(remotionSrcDir)) {
     throw new Error("E2201: remotion/src directory not found");
   }
+  const { syncAllAssetsToRemotionPublic } = require("./asset-service");
+  syncAllAssetsToRemotionPublic(projectRoot, subprojectRelativePath);
   const result = generateRemotionCode({ remotionSrcDir, timeline });
   const { fingerprint } = fingerprintRemotionSrc(remotionSrcDir);
   timeline.remotionFingerprint = fingerprint;

@@ -3,6 +3,7 @@ const path = require("node:path");
 const { validateTimeline } = require("@easymotion/shared");
 const { generateRoot } = require("./generate-root");
 const { generateMainSequence } = require("./generate-main-sequence");
+const { ensureCodegenAssets } = require("./sync-codegen-assets");
 const { writeTimelineManifest } = require("../importer/timeline-manifest");
 const { ensureDir } = require("../services/file-service");
 
@@ -31,13 +32,15 @@ function generateRemotionCode({ remotionSrcDir, timeline }) {
     height: timeline.height,
   };
 
+  const assetFiles = ensureCodegenAssets(remotionSrcDir, timeline);
+
   writeTimelineManifest(remotionSrcDir, timeline, "generator");
   writeFile(rootPath, rootCode);
   writeFile(mainSequencePath, mainSequenceCode);
   writeFile(previewConfigPath, previewConfig);
 
   return {
-    files: [rootPath, mainSequencePath, previewConfigPath, manifestPath],
+    files: [rootPath, mainSequencePath, previewConfigPath, manifestPath, ...assetFiles],
   };
 }
 

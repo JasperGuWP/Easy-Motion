@@ -30,6 +30,12 @@ function getRemotionPublicDir(projectRoot, subprojectRelativePath = "subprojects
   return path.join(getRemotionDir(projectRoot, subprojectRelativePath), "public");
 }
 
+/** publicPath 如 `/assets/video/uuid.mp4` → remotion/public/assets/video/uuid.mp4 */
+function resolvePublicMirrorPath(publicRoot, publicPath) {
+  const rel = String(publicPath).replace(/^\/+/, "");
+  return path.join(publicRoot, rel);
+}
+
 function detectAssetType(filePath) {
   const ext = path.extname(filePath).slice(1).toLowerCase();
   return EXTENSION_MAP[ext] ?? null;
@@ -109,6 +115,26 @@ function listAssets(projectRoot) {
   return manifest.assets.filter((a) => !a.isDeleted);
 }
 
+/** 将项目 assets/ 下的文件同步到 remotion/public/assets/，供 staticFile 加载 */
+function syncAllAssetsToRemotionPublic(
+  projectRoot,
+  subprojectRelativePath = "subprojects/default",
+) {
+  const publicRoot = getRemotionPublicDir(projectRoot, subprojectRelativePath);
+  const synced = [];
+
+  for (const asset of listAssets(projectRoot)) {
+    const src = path.join(projectRoot, asset.path);
+    const dest = resolvePublicMirrorPath(publicRoot, asset.publicPath);
+    if (!fs.existsSync(src)) continue;
+    ensureDir(path.dirname(dest));
+    fs.copyFileSync(src, dest);
+    synced.push(dest);
+  }
+
+  return synced;
+}
+
 async function importAssetFiles(
   projectRoot,
   filePaths,
@@ -143,7 +169,8 @@ async function importAssetFiles(
     const storedName = `${id}${ext}`;
     const relativePath = path.posix.join("assets", assetType, storedName);
     const destPath = path.join(projectRoot, "assets", assetType, storedName);
-    const publicDest = path.join(publicRoot, assetType, storedName);
+    const publicPath = `/assets/${assetType}/${storedName}`;
+    const publicDest = resolvePublicMirrorPath(publicRoot, publicPath);
 
     try {
       ensureDir(path.dirname(destPath));
@@ -160,7 +187,7 @@ async function importAssetFiles(
         type: assetType,
         mimeType: guessMime(ext),
         path: relativePath.replace(/\\/g, "/"),
-        publicPath: `/assets/${assetType}/${storedName}`,
+        publicPath,
         width: meta.width,
         height: meta.height,
         durationInFrames: meta.durationInFrames,
@@ -209,4 +236,6 @@ module.exports = {
   listAssets,
   importAssetFiles,
   detectAssetType,
+  syncAllAssetsToRemotionPublic,
+  resolvePublicMirrorPath,
 };
