@@ -14,6 +14,17 @@ import { cn } from "@/lib/utils";
 const inputClass =
   "w-full rounded-md border border-em-border bg-em-surface px-2.5 py-1.5 font-mono text-xs text-em-text placeholder:text-em-muted focus:border-em-teal focus:outline-none focus:ring-1 focus:ring-em-teal disabled:cursor-not-allowed disabled:opacity-50";
 
+/** 规范为 #RRGGBB，供原生色板使用 */
+function normalizeHexColor(value: string): string {
+  const v = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toLowerCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(v)) {
+    const h = v.slice(1);
+    return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toLowerCase();
+  }
+  return "#ffffff";
+}
+
 function PropertyRow({
   label,
   children,
@@ -82,6 +93,43 @@ function SchemaField({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
         />
+      </PropertyRow>
+    );
+  }
+
+  if (field.type === "color") {
+    const pickerValue = normalizeHexColor(draft || displayValue || "#ffffff");
+    return (
+      <PropertyRow label={field.label}>
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={pickerValue}
+            disabled={disabled}
+            onChange={(e) => {
+              const next = e.target.value.toLowerCase();
+              setDraft(next);
+              onPatch(buildPatchFromPropertyPath(field.path, next));
+            }}
+            className="h-9 w-11 shrink-0 cursor-pointer rounded-md border border-em-border bg-em-surface p-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={`${field.label}色板`}
+          />
+          <input
+            type="text"
+            className={cn(inputClass, "min-w-0 flex-1 font-mono")}
+            value={draft}
+            disabled={disabled}
+            placeholder="#ffffff"
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commit();
+              }
+            }}
+          />
+        </div>
       </PropertyRow>
     );
   }

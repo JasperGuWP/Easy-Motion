@@ -54,3 +54,4 @@ contextBridge.exposeInMainWorld("easyMotion", {
       ipcRenderer.on("renderer:timeline:updated", (_event, data) => callback(data));
     },
   },
+});

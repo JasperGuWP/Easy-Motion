@@ -371,6 +371,22 @@ function queryElement(timeline, query, type = "any") {
   return { matches, bestMatch: matches[0] ?? null };
 }
 
+function collectTextClips(timeline) {
+  const clips = [];
+  const walk = (track) => {
+    for (const clip of track.clips) {
+      if (clip.type === "text") {
+        clips.push({ track, clip });
+      }
+    }
+    if (track.children) {
+      for (const child of track.children) walk(child);
+    }
+  };
+  for (const track of timeline.tracks) walk(track);
+  return clips;
+}
+
 function summarizeTimeline(timeline) {
   const tracks = [];
   for (const track of timeline.tracks) {
@@ -424,6 +440,7 @@ module.exports = {
   createDefaultTextClip,
   buildPatchFromPathUpdates,
   summarizeTimeline,
+  collectTextClips,
   findTrackById,
   findLayerTrackForClip,
   newId,

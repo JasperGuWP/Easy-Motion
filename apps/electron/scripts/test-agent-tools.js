@@ -7,6 +7,8 @@ const {
   AgentTimelineSession,
   executeTool,
   tryFastPathTitle,
+  tryFastPathFontSize,
+  FONT_SCALE_UP,
 } = require("../src/main/services/agent-tool-executor");
 const { shouldUseAgent } = require("../src/main/services/agent-service");
 
@@ -68,6 +70,29 @@ async function run() {
   }
 
   await session2.commit();
+
+  const session3 = new AgentTimelineSession(projectPath, SUBPROJECT);
+  const fontFast = tryFastPathFontSize(session3, "字体大一点");
+  if (!fontFast?.success) {
+    throw new Error(`font fast path failed: ${fontFast?.error}`);
+  }
+  const expectedSize = Math.round(64 * FONT_SCALE_UP);
+  if (fontFast.nextSize !== expectedSize) {
+    throw new Error(`font size expected ${expectedSize}, got ${fontFast.nextSize}`);
+  }
+  await session3.commit();
+
+  const afterFont = timelineService.loadTimeline(projectPath, SUBPROJECT);
+  const helloClip = afterFont.tracks
+    .flatMap((t) => t.clips)
+    .find((c) => c.source?.content === "Hello");
+  if (Number(helloClip?.style?.fontSize) !== expectedSize) {
+    throw new Error("fontSize not persisted on Hello clip");
+  }
+
+  if (!shouldUseAgent("字体大一点")) {
+    throw new Error("shouldUseAgent fontSize failed");
+  }
 
   fs.rmSync(parentPath, { recursive: true, force: true });
   console.log("[PASS] agent-tools");

@@ -9,10 +9,14 @@ const {
   createDefaultTextClip,
   buildPatchFromPathUpdates,
   summarizeTimeline,
+  collectTextClips,
   findTrackById,
   findLayerTrackForClip,
   newId,
 } = mutations;
+
+const FONT_SCALE_UP = 1.2;
+const FONT_SCALE_DOWN = 0.8;
 
 class AgentTimelineSession {
   constructor(projectRoot, subprojectPath = "subprojects/default") {
@@ -183,14 +187,98 @@ function tryFastPathTitle(session, userText) {
   return {
     success: true,
     fastPath: true,
+    kind: "createTitle",
     title,
     trackId: trackResult.data.trackId,
     clipId: clipResult.data.clipId,
   };
 }
 
+function pickLargestFontClip(items) {
+  return items.reduce((best, item) => {
+    const bestSize = Number(best.clip.style?.fontSize ?? 0);
+    const itemSize = Number(item.clip.style?.fontSize ?? 0);
+    return itemSize >= bestSize ? item : best;
+  }).clip;
+}
+
+function resolveTargetTextClip(timeline, userText) {
+  const textClips = collectTextClips(timeline);
+  if (textClips.length === 0) return null;
+  if (textClips.length === 1) return textClips[0].clip;
+
+  const text = String(userText ?? "");
+  for (const { clip } of textClips) {
+    const name = clip.name || "";
+    const content = clip.source?.content || "";
+    if (
+      (name && text.includes(name)) ||
+      (content && content.length > 1 && text.includes(content))
+    ) {
+      return clip;
+    }
+  }
+
+  // 优先调整 Agent 刚创建/修改的片段，避免误改模板自带文字
+  const aiClips = textClips.filter(({ clip }) => clip.lastModifiedBy === "ai");
+  if (aiClips.length === 1) return aiClips[0].clip;
+  if (aiClips.length > 1) return pickLargestFontClip(aiClips);
+
+  return pickLargestFontClip(textClips);
+}
+
+/**
+ * 无 LLM 快速路径：字体大一点 / 小一点
+ */
+function tryFastPathFontSize(session, userText) {
+  const text = String(userText ?? "").trim();
+  const bigger =
+    /字体?\s*(大|放大|增大)\s*一点|字\s*大\s*一点|放大字体|字号\s*(大|放大|增大)/i.test(text);
+  const smaller =
+    /字体?\s*(小|缩小|减小)\s*一点|字\s*小\s*一点|缩小字体|字号\s*(小|缩小|减小)/i.test(text);
+  if (!bigger && !smaller) return null;
+
+  const clip = resolveTargetTextClip(session.timeline, userText);
+  if (!clip) {
+    return { success: false, error: "时间线上没有可调整的文字片段" };
+  }
+
+  const currentSize = Number(clip.style?.fontSize ?? 48);
+  const ratio = bigger ? FONT_SCALE_UP : FONT_SCALE_DOWN;
+  const nextSize = Math.max(12, Math.min(240, Math.round(currentSize * ratio)));
+
+  const result = executeTool(session, "updateClip", {
+    clipId: clip.id,
+    updates: { "style.fontSize": nextSize },
+  });
+  if (!result.success) return result;
+
+  return {
+    success: true,
+    fastPath: true,
+    kind: "fontSize",
+    clipId: clip.id,
+    previousSize: currentSize,
+    nextSize,
+    direction: bigger ? "up" : "down",
+  };
+}
+
+/**
+ * 依次尝试所有无 LLM 快速路径
+ */
+function tryFastPath(session, userText) {
+  const title = tryFastPathTitle(session, userText);
+  if (title) return title;
+  return tryFastPathFontSize(session, userText);
+}
+
 module.exports = {
   AgentTimelineSession,
   executeTool,
   tryFastPathTitle,
+  tryFastPathFontSize,
+  tryFastPath,
+  FONT_SCALE_UP,
+  FONT_SCALE_DOWN,
 };

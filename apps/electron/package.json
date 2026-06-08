@@ -12,7 +12,7 @@
     "test:m1": "node scripts/test-file-service.js && node scripts/test-project-service.js && node scripts/test-asset-public-path.js",
     "test:m2": "node scripts/test-timeline-schema.js && node scripts/test-generator.js && node scripts/test-sync-codegen-assets.js && node scripts/test-timeline-service.js && node scripts/test-remotion-project.js",
     "test:m3": "node scripts/test-generator.js",
-    "test:m5": "node scripts/test-llm-service.js && node scripts/test-settings-service.js && node scripts/test-conversation-persistence.js && node scripts/test-agent-tools.js",
+    "test:m5": "node scripts/test-llm-service.js && node scripts/test-settings-service.js && node scripts/test-conversation-persistence.js && node scripts/test-agent-tools.js && node scripts/test-agent-simplified.js",
     "test": "pnpm test:m1 && pnpm test:m2 && pnpm test:m3 && pnpm test:m5"
   },
   "dependencies": {
