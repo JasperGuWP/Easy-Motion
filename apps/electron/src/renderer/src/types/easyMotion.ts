@@ -1,3 +1,4 @@
+import type { ChatMessage, ChatSettings } from "./chat";
 import type { Timeline } from "./timeline";
 
 export interface IpcError {
@@ -114,6 +115,36 @@ export interface EasyMotionApi {
         assets: import("./asset").ProjectAsset[];
       }>
     >;
+  };
+  chat: {
+    loadHistory: (payload?: { subprojectPath?: string }) => Promise<
+      IpcResult<{ messages: ChatMessage[]; settings: ChatSettings }>
+    >;
+    saveHistory: (payload: {
+      messages: ChatMessage[];
+      subprojectPath?: string;
+    }) => Promise<IpcResult<{ messages: ChatMessage[] }>>;
+    send: (payload: {
+      content: string;
+      subprojectPath?: string;
+    }) => Promise<
+      IpcResult<{
+        messages: ChatMessage[];
+        assistantMessage: ChatMessage;
+        timelineUpdated?: boolean;
+      }>
+    >;
+    getSettings: () => Promise<IpcResult<ChatSettings>>;
+    saveSettings: (payload: {
+      llm?: {
+        provider?: string;
+        model?: string;
+        baseUrl?: string;
+        apiKey?: string;
+      };
+    }) => Promise<IpcResult<ChatSettings>>;
+    onChunk: (callback: (chunk: import("./chat").ChatChunk) => void) => void;
+    onTimelineUpdated: (callback: (data: { source?: string }) => void) => void;
   };
 }
 

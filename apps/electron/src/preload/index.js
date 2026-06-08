@@ -41,4 +41,16 @@ contextBridge.exposeInMainWorld("easyMotion", {
     importFiles: (payload) => invoke("main:asset:import", payload),
     pickAndImport: (payload) => invoke("main:asset:pickAndImport", payload),
   },
-});
+  chat: {
+    loadHistory: (payload) => invoke("main:chat:loadHistory", payload),
+    saveHistory: (payload) => invoke("main:chat:saveHistory", payload),
+    send: (payload) => invoke("main:chat:send", payload),
+    getSettings: () => invoke("main:chat:getSettings"),
+    saveSettings: (payload) => invoke("main:chat:saveSettings", payload),
+    onChunk: (callback) => {
+      ipcRenderer.on("renderer:chat:chunk", (_event, data) => callback(data));
+    },
+    onTimelineUpdated: (callback) => {
+      ipcRenderer.on("renderer:timeline:updated", (_event, data) => callback(data));
+    },
+  },
