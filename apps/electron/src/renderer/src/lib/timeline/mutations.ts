@@ -22,7 +22,8 @@ import {
   normalizeMarkers,
 } from "@/lib/timeline/markers";
 import { assertValidTimeline } from "@/lib/timeline/validate";
-import type { Clip, Timeline, TimelineMarker, Track, TrackType } from "@/types/timeline";
+import type { Clip, Keyframe, Timeline, TimelineMarker, Track, TrackType } from "@/types/timeline";
+import { upsertKeyframe, removeKeyframe } from "@/lib/timeline/keyframes";
 
 export function cloneTimeline(timeline: Timeline): Timeline {
   return structuredClone(timeline);
@@ -469,6 +470,7 @@ export interface ClipPatch {
     rotation?: number;
     opacity?: number;
   };
+  keyframes?: Keyframe[];
 }
 
 function mergeClip(base: Clip, patch: ClipPatch): Clip {
@@ -499,10 +501,13 @@ function mergeClip(base: Clip, patch: ClipPatch): Clip {
       ...baseTransform,
       ...patch.transform,
       position: {
-        ...(baseTransform.position ?? {}),
+        ...(baseTransform.position as object | undefined),
         ...(patch.transform.position ?? {}),
       },
     };
+  }
+  if (patch.keyframes !== undefined) {
+    next.keyframes = patch.keyframes;
   }
 
   return next;
@@ -571,6 +576,45 @@ export function updateClip(
   );
 
   return withValidated({ ...timeline, tracks });
+}
+
+export function upsertClipKeyframe(
+  timeline: Timeline,
+  clipId: string,
+  partial: Omit<Keyframe, "id"> & { id?: string },
+): Timeline {
+  const located = findLayerTrackForClip(timeline, clipId);
+  if (!located) throw new Error("片段不存在");
+  if (located.layerTrack.locked || located.clipTrack.locked) {
+    throw new Error("轨道已锁定");
+  }
+
+  const localFrame = Math.round(partial.frame);
+  if (localFrame < 0 || localFrame >= located.clip.durationInFrames) {
+    throw new Error("关键帧须落在片段时长内");
+  }
+
+  const nextKeyframes = upsertKeyframe(located.clip.keyframes ?? [], {
+    ...partial,
+    frame: localFrame,
+  }) as Keyframe[];
+
+  return updateClip(timeline, clipId, { keyframes: nextKeyframes });
+}
+
+export function removeClipKeyframe(
+  timeline: Timeline,
+  clipId: string,
+  keyframeId: string,
+): Timeline {
+  const located = findLayerTrackForClip(timeline, clipId);
+  if (!located) throw new Error("片段不存在");
+  if (located.layerTrack.locked || located.clipTrack.locked) {
+    throw new Error("轨道已锁定");
+  }
+
+  const nextKeyframes = removeKeyframe(located.clip.keyframes ?? [], keyframeId) as Keyframe[];
+  return updateClip(timeline, clipId, { keyframes: nextKeyframes });
 }
 
 export function getSortedTracks(timeline: Timeline): Track[] {

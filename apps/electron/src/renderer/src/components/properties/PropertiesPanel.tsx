@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trash2, X } from "lucide-react";
 import { ClipPropertyFields } from "@/components/properties/ClipPropertyFields";
+import { KeyframeSection } from "@/components/properties/KeyframeSection";
 import { debounce } from "@/lib/debounce";
 import { resolveEditableClipType } from "@/lib/timeline/clipPropertySchema";
 import type { ClipPatch } from "@/lib/timeline/mutations";
@@ -160,6 +161,14 @@ export function PropertiesPanel() {
           onPatch={(patch) => onPatch(contentClip.id, patch)}
           mode="quick"
         />
+        <ClipPropertyFields
+          clipType={contentType}
+          clip={contentClip}
+          disabled={disabled}
+          onPatch={(patch) => onPatch(contentClip.id, patch)}
+          mode="transform"
+        />
+        <KeyframeSection clip={contentClip} disabled={disabled} />
       </div>
     );
   }
@@ -251,9 +260,17 @@ function TextEditorPanel({
             onPatch={onPatch}
             mode="quick"
             excludePaths={["source.content"]}
+          <ClipPropertyFields
+            clipType="text"
+            clip={clip}
+            disabled={disabled}
+            onPatch={onPatch}
+            mode="transform"
           />
         </div>
       </details>
+
+      <KeyframeSection clip={clip} disabled={disabled} />
 
       <p className="text-[11px] text-em-muted">
         改字后约 1 秒自动更新预览（需已启动预览）。Esc 或 × 可退出。

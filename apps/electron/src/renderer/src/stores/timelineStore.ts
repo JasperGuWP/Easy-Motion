@@ -31,6 +31,8 @@ import {
   toggleTrackSolo,
   toggleTrackVisibility,
   updateClip,
+  upsertClipKeyframe,
+  removeClipKeyframe,
   removeMarker,
 } from "@/lib/timeline/mutations";
 import type { ClipPatch } from "@/lib/timeline/mutations";
@@ -137,6 +139,13 @@ interface TimelineState {
   ) => void;
   splitClip: (clipId: string, splitFrame: number) => void;
   updateClip: (clipId: string, patch: ClipPatch) => void;
+  upsertClipKeyframe: (
+    clipId: string,
+    property: string,
+    localFrame: number,
+    value: unknown,
+  ) => void;
+  removeClipKeyframe: (clipId: string, keyframeId: string) => void;
   splitSelectedClipAtPlayhead: () => void;
   deleteSelectedClip: () => void;
   alignSelectedClipHorizontalCenter: () => void;
@@ -885,6 +894,26 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
 
     updateClip: (clipId, patch) => {
       runMutation((t) => updateClip(t, clipId, patch), {
+        generate: "debounced",
+      });
+    },
+
+    upsertClipKeyframe: (clipId, property, localFrame, value) => {
+      runMutation(
+        (t) =>
+          upsertClipKeyframe(t, clipId, {
+            property,
+            frame: localFrame,
+            value,
+            easing: "ease-in-out",
+            interpolation: "linear",
+          }),
+        { generate: "debounced" },
+      );
+    },
+
+    removeClipKeyframe: (clipId, keyframeId) => {
+      runMutation((t) => removeClipKeyframe(t, clipId, keyframeId), {
         generate: "debounced",
       });
     },

@@ -12,6 +12,15 @@ const {
   resolveClipDurationFrames,
   canExtendTimelineForAsset,
 } = require("./asset-place-duration");
+const {
+  DEFAULT_EASING,
+  clipLocalFrame,
+  filterPropertyKeyframes,
+  upsertKeyframe,
+  removeKeyframe,
+  removePropertyKeyframes,
+  interpolateKeyframesAtFrame,
+} = require("./keyframe");
 
 module.exports = {
   ...timeline,
@@ -26,4 +35,11 @@ module.exports = {
   needsAssetPlaceChoice,
   resolveClipDurationFrames,
   canExtendTimelineForAsset,
+  DEFAULT_EASING,
+  clipLocalFrame,
+  filterPropertyKeyframes,
+  upsertKeyframe,
+  removeKeyframe,
+  removePropertyKeyframes,
+  interpolateKeyframesAtFrame,
 };

@@ -1,5 +1,6 @@
 import React from "react";
 import { interpolate, useCurrentFrame } from "remotion";
+import { interpolateKeyframesAtFrame, type KeyframeLike } from "../../lib/keyframe";
 
 type Transform = {
   position: { x: number; y: number };
@@ -18,6 +19,7 @@ type TextLayerProps = {
     color: string;
     textAlign?: "left" | "center" | "right";
   };
+  keyframes?: KeyframeLike[];
   inAnimation?: { type: string; durationInFrames: number };
 };
 
@@ -25,17 +27,25 @@ export const TextLayer: React.FC<TextLayerProps> = ({
   source,
   transform,
   style,
-  inAnimation
+  keyframes = [],
+  inAnimation,
 }) => {
   const frame = useCurrentFrame();
   const fadeIn =
     inAnimation?.type === "fade"
       ? interpolate(frame, [0, inAnimation.durationInFrames], [0, 1], {
-          extrapolateRight: "clamp"
+          extrapolateRight: "clamp",
         })
       : 1;
 
-  const opacity = transform.opacity * fadeIn;
+  const baseOpacity = transform.opacity ?? 1;
+  const animatedOpacity = interpolateKeyframesAtFrame(
+    keyframes,
+    "transform.opacity",
+    frame,
+    baseOpacity,
+  );
+  const opacity = animatedOpacity * fadeIn;
 
   return (
     <div
@@ -49,7 +59,7 @@ export const TextLayer: React.FC<TextLayerProps> = ({
         fontFamily: style.fontFamily,
         fontSize: style.fontSize,
         textAlign: style.textAlign ?? "center",
-        whiteSpace: "pre-wrap"
+        whiteSpace: "pre-wrap",
       }}
     >
       {source.content}

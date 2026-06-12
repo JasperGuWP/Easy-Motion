@@ -67,6 +67,25 @@ export interface Track {
 
 export type LastModifiedBy = "user" | "ai" | null;
 
+export type KeyframeEasing =
+  | "linear"
+  | "ease-in"
+  | "ease-out"
+  | "ease-in-out"
+  | "spring";
+
+export type KeyframeInterpolation = "linear" | "bezier" | "hold";
+
+export interface Keyframe {
+  id: string;
+  property: string;
+  /** 相对片段 Sequence 的本地帧号 */
+  frame: number;
+  value: unknown;
+  easing: KeyframeEasing;
+  interpolation: KeyframeInterpolation;
+}
+
 export interface Clip {
   id: string;
   type: string;
@@ -77,7 +96,7 @@ export interface Clip {
   source?: Record<string, unknown>;
   transform?: Record<string, unknown>;
   style?: Record<string, unknown>;
-  keyframes?: unknown[];
+  keyframes?: Keyframe[];
   animations?: Record<string, unknown>;
 }
 

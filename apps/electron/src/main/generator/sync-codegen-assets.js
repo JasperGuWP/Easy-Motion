@@ -55,6 +55,23 @@ function copyFileIfMissing(src, dest) {
   return dest;
 }
 
+function copyTemplateFile(src, dest, { force = false } = {}) {
+  if (!fs.existsSync(src)) return null;
+  if (!force && fs.existsSync(dest)) return null;
+  ensureDir(path.dirname(dest));
+  fs.copyFileSync(src, dest);
+  return dest;
+}
+
+function timelineHasKeyframes(tracks) {
+  for (const track of flattenTracksForCompile(tracks)) {
+    for (const clip of track.clips ?? []) {
+      if ((clip.keyframes ?? []).length > 0) return true;
+    }
+  }
+  return false;
+}
+
 function copyDirMissingFiles(srcDir, destDir) {
   const copied = [];
   if (!fs.existsSync(srcDir)) return copied;
@@ -95,6 +112,22 @@ function ensureCodegenAssets(remotionSrcDir, timeline) {
         path.join(remotionSrcDir, "components", dirName)
       )
     );
+  }
+
+  const keyframeUtil = copyTemplateFile(
+    path.join(templateSrc, "lib", "keyframe.ts"),
+    path.join(remotionSrcDir, "lib", "keyframe.ts"),
+    { force: true },
+  );
+  if (keyframeUtil) copied.push(keyframeUtil);
+
+  if (timelineHasKeyframes(timeline.tracks)) {
+    const textLayer = copyTemplateFile(
+      path.join(templateSrc, "components", "layers", "TextLayer.tsx"),
+      path.join(remotionSrcDir, "components", "layers", "TextLayer.tsx"),
+      { force: true },
+    );
+    if (textLayer) copied.push(textLayer);
   }
 
   return copied;
