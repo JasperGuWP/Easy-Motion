@@ -1,3 +1,7 @@
+import {
+  getAssetDesiredDurationFrames,
+  getRemainingFrames,
+} from "@easymotion/shared";
 import { addClip, addTrack, newId } from "@/lib/timeline/mutations";
 import { snapClipMove } from "@/lib/timeline/snapClip";
 import type { SnapEditOptions } from "@/lib/timeline/snapEditFrame";
@@ -10,6 +14,8 @@ export interface PlaceAssetOptions {
   startInFrames: number;
   trackId?: string | null;
   snap?: SnapEditOptions;
+  /** 显式片段时长（帧）；缺省为 min(素材时长, 成片剩余) */
+  clipDurationFrames?: number;
 }
 
 export interface PlaceAssetResult {
@@ -19,17 +25,20 @@ export interface PlaceAssetResult {
 }
 
 function defaultDuration(asset: ProjectAsset, timeline: Timeline, start: number): number {
-  const fromAsset = asset.durationInFrames;
-  if (fromAsset && fromAsset > 0) {
-    return Math.min(fromAsset, timeline.durationInFrames - start);
-  }
-  const fallback = asset.type === "image" ? timeline.fps * 3 : timeline.fps * 5;
-  return Math.min(Math.max(1, fallback), timeline.durationInFrames - start);
+  const desired = getAssetDesiredDurationFrames(asset, timeline, start);
+  const remaining = getRemainingFrames(timeline, start);
+  return Math.max(1, Math.min(desired, remaining));
 }
 
-function buildClipFromAsset(asset: ProjectAsset, timeline: Timeline, start: number): Clip {
+function buildClipFromAsset(
+  asset: ProjectAsset,
+  timeline: Timeline,
+  start: number,
+  clipDurationFrames?: number,
+): Clip {
   const trackType = assetTrackType(asset.type);
-  const durationInFrames = defaultDuration(asset, timeline, start);
+  const durationInFrames =
+    clipDurationFrames ?? defaultDuration(asset, timeline, start);
 
   const transform = {
     position: { x: timeline.width / 2, y: timeline.height / 2 },
@@ -100,7 +109,12 @@ export function placeAssetOnTimeline(
     0,
     Math.min(options.startInFrames, withTrack.durationInFrames - 1),
   );
-  const clipDraft = buildClipFromAsset(asset, withTrack, startInFrames);
+  const clipDraft = buildClipFromAsset(
+    asset,
+    withTrack,
+    startInFrames,
+    options.clipDurationFrames,
+  );
 
   if (options.snap) {
     const snapped = snapClipMove(startInFrames, clipDraft.durationInFrames, {

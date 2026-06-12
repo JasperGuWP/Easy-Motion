@@ -1,13 +1,20 @@
 import { useEffect } from "react";
+import { AssetDuplicateDialog } from "@/components/assets/AssetDuplicateDialog";
+import { AssetDurationDialog } from "@/components/assets/AssetDurationDialog";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useTimelineShortcuts } from "@/hooks/useTimelineShortcuts";
-import { useAssetStore } from "@/stores/assetStore";
+import { subscribeAssetImportProgress, useAssetStore } from "@/stores/assetStore";
 import { useChatStore } from "@/stores/chatStore";
+import { usePresetStore } from "@/stores/presetStore";
 import { useProjectStore } from "@/stores/projectStore";
 import { useTimelineStore } from "@/stores/timelineStore";
 
 export default function App() {
   useTimelineShortcuts();
+
+  useEffect(() => {
+    subscribeAssetImportProgress();
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -17,6 +24,7 @@ export default function App() {
           useTimelineStore.getState().loadTimeline(),
           useAssetStore.getState().loadAssets(),
           useChatStore.getState().loadHistory(),
+          usePresetStore.getState().loadPresets(),
         ]);
       } else {
         useAssetStore.getState().clear();
@@ -25,5 +33,11 @@ export default function App() {
     })();
   }, []);
 
-  return <AppLayout />;
+  return (
+    <>
+      <AppLayout />
+      <AssetDurationDialog />
+      <AssetDuplicateDialog />
+    </>
+  );
 }

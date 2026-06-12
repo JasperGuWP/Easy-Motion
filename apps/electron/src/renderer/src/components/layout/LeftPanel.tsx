@@ -2,7 +2,7 @@ import { PanelTabs } from "@/components/common/PanelTabs";
 import { AssetsPanel } from "@/components/assets/AssetsPanel";
 import { ProjectPanel } from "@/components/project/ProjectPanel";
 import { useUiStore } from "@/stores/uiStore";
-import { LayoutTemplate } from "lucide-react";
+import { PresetsPanel } from "@/components/presets/PresetsPanel";
 
 const TABS = [
   { id: "project" as const, label: "项目" },
@@ -19,32 +19,8 @@ export function LeftPanel() {
       <div className="flex flex-1 flex-col overflow-auto p-3 text-sm text-em-muted">
         {leftTab === "project" && <ProjectPanel />}
         {leftTab === "assets" && <AssetsPanel />}
-        {leftTab === "presets" && (
-          <EmptyHint
-            icon={<LayoutTemplate className="h-10 w-10 text-em-border" />}
-            title="预设"
-            hint="浏览预设，快速开始"
-          />
-        )}
+        {leftTab === "presets" && <PresetsPanel />}
       </div>
     </aside>
-  );
-}
-
-function EmptyHint({
-  icon,
-  title,
-  hint,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  hint: string;
-}) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-      {icon}
-      <p className="text-em-text">{title}</p>
-      <p className="text-xs">{hint}</p>
-    </div>
   );
 }

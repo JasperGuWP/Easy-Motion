@@ -1,5 +1,5 @@
 /**
- * VS Code F5：若 5173 未就绪则后台启动 Vite，并等待可访问
+ * VS Code F5：若 5176 未就绪则后台启动 Vite，并等待可访问
  * 启动的进程 pid 写入临时文件，供 stop 调试时 cleanup-debug-processes 回收
  */
 const { spawn } = require("node:child_process");
@@ -10,7 +10,7 @@ const waitOn = require("wait-on");
 
 const repoRoot = path.resolve(__dirname, "../../..");
 const VITE_PID_FILE = path.join(os.tmpdir(), "easymotion-debug-vite.pid");
-const target = "http-get://127.0.0.1:5173";
+const target = "http-get://127.0.0.1:5176";
 const waitOpts = {
   interval: 500,
   validateStatus: (status) => status >= 200 && status < 500,

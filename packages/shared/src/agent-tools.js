@@ -6,6 +6,7 @@ const AGENT_TOOL_NAMES = [
   "updateClip",
   "deleteClip",
   "queryElement",
+  "importAsset",
 ];
 
 const AGENT_TOOLS_OPENAI = [
@@ -101,6 +102,25 @@ const AGENT_TOOLS_OPENAI = [
           clipId: { type: "string" },
         },
         required: ["trackId", "clipId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "importAsset",
+      description:
+        "从本地绝对路径导入素材（图片/视频/音频）到项目库。返回 assetId 与 publicPath，可配合 createClip(source.kind=asset) 使用。",
+      parameters: {
+        type: "object",
+        properties: {
+          filePath: { type: "string", description: "单个文件的绝对路径" },
+          filePaths: {
+            type: "array",
+            items: { type: "string" },
+            description: "批量导入时的路径列表",
+          },
+        },
       },
     },
   },

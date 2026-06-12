@@ -63,7 +63,7 @@ function buildUpdatePatch(timeline, clipId, updates) {
   return buildPatchFromPathUpdates(updates);
 }
 
-function executeTool(session, toolName, params) {
+async function executeTool(session, toolName, params) {
   const timeline = session.timeline;
 
   switch (toolName) {
@@ -144,6 +144,47 @@ function executeTool(session, toolName, params) {
       return { success: true, data: result };
     }
 
+    case "importAsset": {
+      const assetService = require("./asset-service");
+      const paths = params.filePath
+        ? [params.filePath]
+        : Array.isArray(params.filePaths)
+          ? params.filePaths.filter(Boolean)
+          : [];
+      if (paths.length === 0) {
+        return { success: false, error: "未提供 filePath 或 filePaths" };
+      }
+      const { imported, errors } = await assetService.importAssetFiles(
+        session.projectRoot,
+        paths,
+        {
+          subprojectPath: session.subprojectPath,
+          fps: session.timeline.fps ?? 30,
+        },
+      );
+      if (!imported.length) {
+        return {
+          success: false,
+          error: errors[0]?.message ?? "素材导入失败",
+        };
+      }
+      return {
+        success: true,
+        data: {
+          imported: imported.map((asset) => ({
+            assetId: asset.id,
+            publicPath: asset.publicPath,
+            path: asset.path,
+            type: asset.type,
+            name: asset.name,
+            durationInFrames: asset.durationInFrames,
+          })),
+          assetId: imported[imported.length - 1].id,
+          publicPath: imported[imported.length - 1].publicPath,
+        },
+      };
+    }
+
     default:
       return { success: false, error: `E4006: unknown tool ${toolName}` };
   }
@@ -152,7 +193,7 @@ function executeTool(session, toolName, params) {
 /**
  * 无 LLM 的快速路径：创建标题文字
  */
-function tryFastPathTitle(session, userText) {
+async function tryFastPathTitle(session, userText) {
   const text = String(userText ?? "").trim();
   const patterns = [
     /创建(?:一个)?标题(?:写着|为|：|:)\s*[「"']?([^」"'\n]+)[」"']?/i,
@@ -170,13 +211,13 @@ function tryFastPathTitle(session, userText) {
   }
   if (!title) return null;
 
-  const trackResult = executeTool(session, "createTrack", {
+  const trackResult = await executeTool(session, "createTrack", {
     name: "标题文字",
     type: "text",
   });
   if (!trackResult.success) return trackResult;
 
-  const clipResult = executeTool(session, "createClip", {
+  const clipResult = await executeTool(session, "createClip", {
     trackId: trackResult.data.trackId,
     name: "标题",
     source: { kind: "inline", content: title },
@@ -230,7 +271,7 @@ function resolveTargetTextClip(timeline, userText) {
 /**
  * 无 LLM 快速路径：字体大一点 / 小一点
  */
-function tryFastPathFontSize(session, userText) {
+async function tryFastPathFontSize(session, userText) {
   const text = String(userText ?? "").trim();
   const bigger =
     /字体?\s*(大|放大|增大)\s*一点|字\s*大\s*一点|放大字体|字号\s*(大|放大|增大)/i.test(text);
@@ -247,7 +288,7 @@ function tryFastPathFontSize(session, userText) {
   const ratio = bigger ? FONT_SCALE_UP : FONT_SCALE_DOWN;
   const nextSize = Math.max(12, Math.min(240, Math.round(currentSize * ratio)));
 
-  const result = executeTool(session, "updateClip", {
+  const result = await executeTool(session, "updateClip", {
     clipId: clip.id,
     updates: { "style.fontSize": nextSize },
   });
@@ -267,8 +308,8 @@ function tryFastPathFontSize(session, userText) {
 /**
  * 依次尝试所有无 LLM 快速路径
  */
-function tryFastPath(session, userText) {
-  const title = tryFastPathTitle(session, userText);
+async function tryFastPath(session, userText) {
+  const title = await tryFastPathTitle(session, userText);
   if (title) return title;
   return tryFastPathFontSize(session, userText);
 }

@@ -1,5 +1,5 @@
 /**
- * F5 preLaunch：释放 CDP 端口 + 确保 Vite 5173 就绪（单任务，避免 VS Code 终端复用卡住）
+ * F5 preLaunch：释放 CDP 端口 + 确保 Vite 5176 就绪（单任务，避免 VS Code 终端复用卡住）
  */
 const { execFileSync } = require("node:child_process");
 const path = require("node:path");

@@ -1,6 +1,6 @@
 /**
  * F5 停止调试 / 关闭调试会话后清理残留子进程
- * - F5 启动的 Vite (5173)
+ * - F5 启动的 Vite (5176)
  * - Remotion 预览 Vite (5174–5193)
  * - Electron CDP (9333)
  * - 可选：Python FastAPI (8001，Full Stack 调试)
@@ -11,7 +11,7 @@ const path = require("node:path");
 const { killPidTree, killPortListeners } = require("./process-utils.cjs");
 
 const VITE_PID_FILE = path.join(os.tmpdir(), "easymotion-debug-vite.pid");
-const RENDERER_PORT = 5173;
+const RENDERER_PORT = 5176;
 const REMOTION_PORT_START = 5174;
 const REMOTION_PORT_END = 5193;
 const CDP_PORT = process.env.ELECTRON_CDP_PORT || "9333";

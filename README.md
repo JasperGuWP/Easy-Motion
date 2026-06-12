@@ -29,20 +29,20 @@ Monorepo（`apps/*` + `packages/*`），当前可运行范围：
 pnpm install
 python -m pip install -r apps/python/requirements.txt   # 首次或更新依赖后
 
-pnpm dev          # Vite (127.0.0.1:5173) + Electron — 日常 UI 开发
+pnpm dev          # Vite (127.0.0.1:5176) + Electron — 日常 UI 开发
 pnpm dev:all      # 上述 + Python（8000 被占用时自动试 8001–8019）
 ```
 
 | 命令 | 作用 |
 |------|------|
 | `pnpm dev:renderer` | 仅 Vite |
-| `pnpm dev:electron` | 等 5173 就绪后启动 Electron |
+| `pnpm dev:electron` | 等 5176 就绪后启动 Electron |
 | `pnpm dev:legacy` | 旧版 HTML 调试页（在 `apps/electron` 包内） |
 | `pnpm lint` / `lint:fix` | ESLint |
 | `pnpm format` / `format:check` | Prettier（`apps` / `packages` / `.vscode` 等，不含 `docs/`） |
 | `pnpm test` | 主进程脚本测试（m1 / m2 / m3） |
 
-开发模式下 Electron 加载 **`http://127.0.0.1:5173`**（Vite 固定 IPv4，避免 Windows 上 `localhost` 仅 IPv6 导致连不上）。
+开发模式下 Electron 加载 **`http://127.0.0.1:5176`**（Vite 固定 IPv4，避免 Windows 上 `localhost` 仅 IPv6 导致连不上）。
 
 ## 仓库结构（简）
 
@@ -73,7 +73,7 @@ docs/design-system/# 设计 Token（权威）
 1. **F5 任务报错 `Out-Null -Command`**  
    已用 `terminal.integrated.automationProfile` 与交互式终端配置分离。修改 `.vscode/settings.json` 后请 **重新加载窗口** 再 F5。
 
-2. **5173 端口被占用**  
+2. **5176 端口被占用**  
    结束残留的 `node`/Vite 进程，或只保留一个 dev 实例。F5 的 `ensure-vite-for-debug` 会复用已运行的 Vite。
 
 3. **Electron 安装失败**  

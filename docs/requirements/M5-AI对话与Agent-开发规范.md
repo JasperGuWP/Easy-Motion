@@ -1,8 +1,34 @@
 # M5：AI 对话与 Agent — 开发规范
 
-> 日期：2026-06-08  
+> 日期：2026-06-08（进度更新：2026-06-08）  
 > 里程碑：M5（Week 13–15）  
 > 并行开发：与 M6 同时进行时，须遵守 [M5-M6-并行开发协作规范.md](M5-M6-并行开发协作规范.md)。
+
+---
+
+## 0. 实现进度（feat/m0-scaffold · 截至 2026-06-08）
+
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| 0 对话 IPC + 持久化 + ChatPanel | ✅ | `chat.js`、`conversation-service.js`、`ChatPanel` |
+| 1 流式 UI + 设置 | ✅ | `ChatSettingsPanel`、40+ 模型预设、API Key 存 `~/.easymotion/settings.json` |
+| 2 LLM 流式 | ✅ | `llm-service.js`，OpenAI 兼容 Base URL 自动补全 |
+| 3 Agent 工具链（文本） | 🟡 | `agent-service.js`、`agent-tool-executor.js`；快速路径：创建标题、字号 ±20% |
+| 4 超时重试 + 简化模式 | ✅ | Agent LLM 45s 超时、重试 1 次、失败降级 E4009 |
+| 5 `importAsset` 联调 | ⏳ | 待 M6 导入链稳定 |
+| 6 多模态图片 | ⏳ | 未开始 |
+
+**已实现文件（主进程 JS）：**
+
+- `apps/electron/src/main/services/llm-service.js`
+- `apps/electron/src/main/services/agent-service.js`
+- `apps/electron/src/main/services/agent-tool-executor.js`
+- `apps/electron/src/main/lib/timeline-agent-mutations.js`
+- `packages/shared/src/agent-tools.js`
+
+**测试：** `pnpm --filter @easymotion/electron test:m5`
+
+> **架构备注：** Agent 时间线变更当前经主进程 `timeline-agent-mutations.js` + `timeline-service` 落盘；渲染端通过 `renderer:timeline:updated` 与 `timelineStore.loadTimeline()` 同步。与 §4.1 渲染端 `mutations.ts` 路径并存，后续可抽到 `packages/shared` 统一。
 
 ---
 
@@ -113,19 +139,30 @@ packages/shared/src/agent-tools.js                  # 工具 schema（与 M6 共
 
 ## 6. 验收标准（M5）
 
-- [ ] 输入「创建标题 Hello」→ 时间线出现 text 片段 → 预览可见
-- [ ] 「字体大一点」→ `updateClip` 生效 → 预览更新
+- [x] 输入「创建标题 Hello」→ 时间线出现 text 片段 → 预览可见（快速路径 + LLM 工具链，`test-agent-tools.js`）
+- [x] 「字体大一点」→ `updateClip` 生效 → 预览更新（快速路径 ×1.2，`test-agent-tools.js`）
 - [ ] Agent 调用 `importAsset` → 使用 M6 导入结果 → 可 `createClip` 引用视频
-- [ ] LLM 超时重试 + 简化模式降级
+- [x] LLM 超时重试 + 简化模式降级（`test-agent-simplified.js`）
 - [ ] 违规生成代码被拒绝写入
-- [ ] 切换子项目后对话历史独立
+- [x] 切换子项目后对话历史独立（`conversation.json`，`test-conversation-persistence.js`）
 
 ---
 
 ## 7. 测试
 
-- `apps/electron/scripts/test-agent-tools.js`（mock LLM，不访问外网）
-- 联调用例：M5 `importAsset` + M6 导入链 → 预览 `staticFile` 200
+```bash
+pnpm --filter @easymotion/electron test:m5
+```
+
+| 脚本 | 覆盖 |
+|------|------|
+| `test-llm-service.js` | SSE 解析、Base URL 补全 |
+| `test-settings-service.js` | API Key 读写 |
+| `test-conversation-persistence.js` | `conversation.json` 持久化 |
+| `test-agent-tools.js` | 创建标题、字号调整、工具执行 |
+| `test-agent-simplified.js` | E4009 简化模式 |
+
+- 联调用例（待做）：M5 `importAsset` + M6 导入链 → 预览 `staticFile` 200
 
 ---
 

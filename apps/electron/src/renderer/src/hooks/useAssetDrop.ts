@@ -1,8 +1,10 @@
 import { useCallback } from "react";
+import { hasOsFiles } from "@/lib/asset/osFileDrop";
 import { TRACK_ROW_HEIGHT } from "@/lib/timeline/constants";
 import { frameFromPointer } from "@/lib/timeline/pointerFrame";
 import { isAssetDrag, readAssetDragData } from "@/lib/timeline/assetDrag";
 import type { Track } from "@/types/timeline";
+import { useOsFileAssetDrop } from "@/hooks/useOsFileAssetDrop";
 import { useTimelineStore } from "@/stores/timelineStore";
 
 export function useAssetDrop(
@@ -24,14 +26,38 @@ export function useAssetDrop(
     [sortedTracks],
   );
 
-  const onDragOver = useCallback((e: React.DragEvent) => {
-    if (!isAssetDrag(e.dataTransfer)) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-  }, []);
+  const osDrop = useOsFileAssetDrop({
+    resolveFrame: (e) => {
+      const container = bodyScrollRef.current;
+      if (!container) return null;
+      return frameFromPointer(e.clientX, container, pxPerFrame, 0);
+    },
+    resolveTrackId: (e) => {
+      const container = bodyScrollRef.current;
+      if (!container) return null;
+      return trackIdFromPointer(e.clientY, container);
+    },
+  });
+
+  const onDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (isAssetDrag(e.dataTransfer)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        return;
+      }
+      osDrop.onDragOver(e);
+    },
+    [osDrop],
+  );
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
+      if (hasOsFiles(e.dataTransfer)) {
+        void osDrop.onDrop(e);
+        return;
+      }
+
       const payload = readAssetDragData(e.dataTransfer);
       if (!payload) return;
       e.preventDefault();
@@ -42,11 +68,12 @@ export function useAssetDrop(
       clearError();
       const frame = frameFromPointer(e.clientX, container, pxPerFrame, 0);
       const trackId = trackIdFromPointer(e.clientY, container);
-      placeAssetAtFrame(payload.assetId, frame, trackId);
+      void placeAssetAtFrame(payload.assetId, frame, trackId);
     },
     [
       bodyScrollRef,
       clearError,
+      osDrop,
       placeAssetAtFrame,
       pxPerFrame,
       trackIdFromPointer,

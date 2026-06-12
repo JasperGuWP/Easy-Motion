@@ -6,19 +6,23 @@
   "scripts": {
     "dev": "concurrently -k \"pnpm dev:renderer\" \"pnpm dev:electron\"",
     "dev:renderer": "vite",
-    "dev:electron": "wait-on http://127.0.0.1:5173 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5173 electron .",
+    "dev:electron": "wait-on http://127.0.0.1:5176 && cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:5176 electron .",
     "dev:legacy": "electron . --legacy-ui",
+    "postinstall": "node scripts/rebuild-native.cjs",
+    "rebuild:native": "node scripts/rebuild-native.cjs",
     "build:renderer": "vite build",
     "test:m1": "node scripts/test-file-service.js && node scripts/test-project-service.js && node scripts/test-asset-public-path.js",
     "test:m2": "node scripts/test-timeline-schema.js && node scripts/test-generator.js && node scripts/test-sync-codegen-assets.js && node scripts/test-timeline-service.js && node scripts/test-remotion-project.js",
     "test:m3": "node scripts/test-generator.js",
-    "test:m5": "node scripts/test-llm-service.js && node scripts/test-settings-service.js && node scripts/test-conversation-persistence.js && node scripts/test-agent-tools.js && node scripts/test-agent-simplified.js",
-    "test": "pnpm test:m1 && pnpm test:m2 && pnpm test:m3 && pnpm test:m5"
+    "test:m5": "node scripts/test-llm-service.js && node scripts/test-settings-service.js && node scripts/test-conversation-persistence.js && node scripts/test-agent-tools.js && node scripts/test-agent-simplified.js && node scripts/test-agent-import-asset.js",
+    "test:m6": "node scripts/test-asset-public-path.js && node scripts/test-asset-delete.js && node scripts/test-place-asset-duration.js && node scripts/test-asset-resolve-url.js && node scripts/test-asset-validation.js && node scripts/test-asset-import-batch.js && node scripts/run-with-electron.cjs scripts/test-asset-duplicates.js && node scripts/test-preset-service.js && node scripts/run-with-electron.cjs scripts/test-asset-db.js",
+    "test": "pnpm test:m1 && pnpm test:m2 && pnpm test:m3 && pnpm test:m5 && pnpm test:m6"
   },
   "dependencies": {
     "@easymotion/shared": "workspace:*",
+    "better-sqlite3": "^12.10.0",
     "clsx": "^2.1.1",
-    "electron": "^42.3.1",
+    "electron": "^41.5.2",
     "lucide-react": "^0.511.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -26,6 +30,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "@types/react": "^18.3.23",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.5.2",

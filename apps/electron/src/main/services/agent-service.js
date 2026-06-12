@@ -21,6 +21,7 @@ function buildAgentSystemPrompt(timelineSummary) {
 - 「字体大一点」：先 queryElement 定位文字片段，再 updateClip 将 style.fontSize 乘以 1.2（当前值×1.2 取整）
 - 「字体小一点」：style.fontSize 乘以 0.8
 - 不确定目标片段时先 queryElement
+- 导入本地素材用 importAsset（传入绝对路径），再用 createClip 引用 assetId/publicPath
 - 完成后用简短中文告诉用户做了什么
 
 当前时间线摘要：
@@ -114,7 +115,7 @@ function formatFastPathReply(fast) {
 }
 
 async function runSimplifiedAgent(session, userMessage, onDelta) {
-  const fast = tryFastPath(session, userMessage);
+  const fast = await tryFastPath(session, userMessage);
   if (fast?.success) {
     await session.commit();
     const reply = `（简化模式）${formatFastPathReply(fast)}`;
@@ -143,7 +144,7 @@ async function runSimplifiedAgent(session, userMessage, onDelta) {
 }
 
 async function runFastPathIfMatched(session, userMessage, onDelta) {
-  const fast = tryFastPath(session, userMessage);
+  const fast = await tryFastPath(session, userMessage);
   if (!fast?.success) return null;
 
   await session.commit();
@@ -205,7 +206,7 @@ async function runAgentTurn({
             args = {};
           }
 
-          const result = executeTool(session, name, args);
+          const result = await executeTool(session, name, args);
           toolLog.push({ tool: name, success: result.success, error: result.error });
 
           messages.push({

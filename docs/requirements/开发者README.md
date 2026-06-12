@@ -167,7 +167,8 @@ pnpm dev
 ```bash
 pnpm dev              # 启动完整开发环境
 pnpm build            # 构建所有应用
-pnpm test             # 运行单元测试
+pnpm test             # 运行单元测试（含 test:m5 AI/Agent）
+pnpm --filter @easymotion/electron test:m5   # 仅 M5 对话/LLM/Agent 测试
 pnpm test:e2e         # 运行 E2E 测试
 pnpm lint             # ESLint 检查
 pnpm format           # 代码格式化
@@ -217,7 +218,7 @@ EasyMotion/
 | M2 | Week 5-7 | 时间线数据模型 + Generator |
 | M3 | Week 8-9 | Remotion 预览集成 |
 | M4 | Week 10-12 | 时间线编辑 UI |
-| M5 | Week 13-15 | AI 对话面板 + Agent |
+| M5 | Week 13-15 | AI 对话面板 + Agent（**进行中**：对话/LLM/文本 Agent 已落地，见 [M5 规范 §0](docs/requirements/M5-AI对话与Agent-开发规范.md)） |
 | M6 | Week 16-17 | 素材管理 + 预设系统 |
 | M7 | Week 18-19 | 属性面板 + 关键帧编辑 |
 | M8 | Week 20-21 | 导出渲染 |

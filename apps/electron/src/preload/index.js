@@ -39,7 +39,20 @@ contextBridge.exposeInMainWorld("easyMotion", {
   asset: {
     list: () => invoke("main:asset:list"),
     importFiles: (payload) => invoke("main:asset:import", payload),
+    checkConflicts: (payload) => invoke("main:asset:checkConflicts", payload),
     pickAndImport: (payload) => invoke("main:asset:pickAndImport", payload),
+    delete: (payload) => invoke("main:asset:delete", payload),
+    resolveFileUrl: (payload) => invoke("main:asset:resolveFileUrl", payload),
+    onImportProgress: (callback) => {
+      ipcRenderer.on("renderer:asset:import-progress", (_event, data) =>
+        callback(data),
+      );
+    },
+  },
+  preset: {
+    list: () => invoke("main:preset:list"),
+    apply: (payload) => invoke("main:preset:apply", payload),
+    save: (payload) => invoke("main:preset:save", payload),
   },
   chat: {
     loadHistory: (payload) => invoke("main:chat:loadHistory", payload),

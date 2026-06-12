@@ -39,7 +39,7 @@
       "env": {
         "ELECTRON_ENABLE_LOGGING": "1",
         "NODE_ENV": "development",
-        "ELECTRON_RENDERER_URL": "http://127.0.0.1:5173",
+        "ELECTRON_RENDERER_URL": "http://127.0.0.1:5176",
         "ELECTRON_CDP_PORT": "9333"
       },
       "presentation": { "hidden": true }
@@ -50,7 +50,7 @@
       "request": "attach",
       "preLaunchTask": "wait: electron cdp",
       "port": 9333,
-      "urlFilter": "http://127.0.0.1:5173/*",
+      "urlFilter": "http://127.0.0.1:5176/*",
       "webRoot": "${workspaceFolder}/apps/electron/src/renderer/src",
       "timeout": 120000,
       "sourceMaps": true,
@@ -84,7 +84,7 @@
       "name": "React: Vite (Chrome)",
       "type": "chrome",
       "request": "launch",
-      "url": "http://127.0.0.1:5173",
+      "url": "http://127.0.0.1:5176",
       "webRoot": "${workspaceFolder}/apps/electron/src/renderer/src",
       "preLaunchTask": "debug: prepare",
       "postDebugTask": "debug: cleanup",

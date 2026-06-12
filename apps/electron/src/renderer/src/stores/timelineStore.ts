@@ -43,7 +43,16 @@ import type {
   TrackType,
 } from "@/types/timeline";
 import type { RemotionSyncStats } from "@/lib/remotion-sync";
+import {
+  canExtendTimelineForAsset,
+  computeExtendTargetFrames,
+  getAssetDesiredDurationFrames,
+  getRemainingFrames,
+  needsAssetPlaceChoice,
+  resolveClipDurationFrames,
+} from "@easymotion/shared";
 import { placeAssetOnTimeline } from "@/lib/timeline/placeAssetClip";
+import { useAssetPlaceStore } from "@/stores/assetPlaceStore";
 import { findMarkerAtFrame, normalizeMarkers } from "@/lib/timeline/markers";
 import { repairTimelineForEditing } from "@/lib/timeline/repair";
 import {
@@ -138,7 +147,7 @@ interface TimelineState {
     assetId: string,
     startInFrames: number,
     trackId?: string | null,
-  ) => void;
+  ) => Promise<void>;
 
   undo: () => void;
   redo: () => void;
@@ -743,7 +752,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
       runMutation((t) => addClip(t, trackId, clip), { generate: "immediate" });
     },
 
-    placeAssetAtFrame: (assetId, startInFrames, trackId) => {
+    placeAssetAtFrame: async (assetId, startInFrames, trackId) => {
       const asset = useAssetStore.getState().getAssetById(assetId);
       if (!asset) {
         set({ error: "素材不存在，请重新导入" });
@@ -756,31 +765,96 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
         return;
       }
 
-      const ui = useUiStore.getState();
-      try {
-        const result = placeAssetOnTimeline(timeline, asset, {
+      let placeChoice: "fit" | "extend" | "remaining" = "fit";
+      if (needsAssetPlaceChoice(asset, timeline, startInFrames)) {
+        const desiredFrames = getAssetDesiredDurationFrames(
+          asset,
+          timeline,
           startInFrames,
-          trackId,
-          snap: {
-            timeline,
-            pxPerFrame: ui.pxPerFrame,
-            currentFrame,
-            snapEnabled: ui.snapEnabled,
-            altKeyHeld: ui.altKeyHeld,
-          },
+        );
+        const remainingFrames = getRemainingFrames(timeline, startInFrames);
+        const extendToFrames = computeExtendTargetFrames(
+          timeline,
+          startInFrames,
+          desiredFrames,
+        );
+        const userChoice = await useAssetPlaceStore.getState().requestChoice({
+          assetName: asset.name,
+          desiredFrames,
+          remainingFrames,
+          extendToFrames,
+          fps: timeline.fps,
+          canExtend: canExtendTimelineForAsset(asset, timeline, startInFrames),
         });
-        commitTimeline(result.timeline, { generate: "immediate" });
+        if (userChoice === "cancel") return;
+        placeChoice = userChoice;
+      }
+
+      const ui = useUiStore.getState();
+      const snap = {
+        timeline,
+        pxPerFrame: ui.pxPerFrame,
+        currentFrame,
+        snapEnabled: ui.snapEnabled,
+        altKeyHeld: ui.altKeyHeld,
+      };
+
+      let placedClipId: string | null = null;
+      let placedTrackId: string | null = null;
+
+      runMutation(
+        (t) => {
+          let working = t;
+          if (placeChoice === "extend") {
+            const desired = getAssetDesiredDurationFrames(
+              asset,
+              working,
+              startInFrames,
+            );
+            const extendTo = computeExtendTargetFrames(
+              working,
+              startInFrames,
+              desired,
+            );
+            working = {
+              ...working,
+              durationInFrames: Math.max(working.durationInFrames, extendTo),
+            };
+          }
+
+          const clipDurationFrames =
+            placeChoice === "fit"
+              ? undefined
+              : resolveClipDurationFrames(
+                  placeChoice,
+                  asset,
+                  working,
+                  startInFrames,
+                );
+
+          const result = placeAssetOnTimeline(working, asset, {
+            startInFrames,
+            trackId,
+            clipDurationFrames,
+            snap: {
+              ...snap,
+              timeline: working,
+            },
+          });
+
+          placedClipId = result.clipId;
+          placedTrackId = result.trackId;
+          return result.timeline;
+        },
+        { generate: "immediate" },
+      );
+
+      if (placedClipId && placedTrackId) {
         set({
-          selectedClipId: result.clipId,
-          selectedTrackId: result.trackId,
+          selectedClipId: placedClipId,
+          selectedTrackId: placedTrackId,
         });
         useUiStore.getState().setRightTab("properties");
-      } catch (err) {
-        const message =
-          err instanceof TimelineValidationError || err instanceof Error
-            ? err.message
-            : "无法放置素材";
-        set({ error: message });
       }
     },
 

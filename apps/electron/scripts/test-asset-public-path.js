@@ -17,7 +17,7 @@ async function run() {
   fs.mkdirSync(path.join(projectRoot, "subprojects", "default", "remotion", "public"), {
     recursive: true,
   });
-  fs.writeFileSync(sampleMp4, "fake-mp4-content");
+  require("./test-fixtures/media-bytes").writeMinimalMp4(sampleMp4);
 
   const { imported } = await importAssetFiles(projectRoot, [sampleMp4], { fps: 30 });
 

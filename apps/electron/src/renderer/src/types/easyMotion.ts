@@ -98,11 +98,22 @@ export interface EasyMotionApi {
       filePaths: string[];
       subprojectPath?: string;
       fps?: number;
+      duplicatePolicy?: "overwrite" | "rename" | "skip";
     }) => Promise<
       IpcResult<{
         imported: import("./asset").ProjectAsset[];
         errors: { path?: string; message: string }[];
+        skipped?: { path?: string; originalName?: string; reason?: string }[];
         assets: import("./asset").ProjectAsset[];
+      }>
+    >;
+    checkConflicts: (payload: { filePaths: string[] }) => Promise<
+      IpcResult<{
+        conflicts: {
+          path: string;
+          originalName: string;
+          existingAssetId: string;
+        }[];
       }>
     >;
     pickAndImport: (payload?: {
@@ -113,6 +124,68 @@ export interface EasyMotionApi {
         imported: import("./asset").ProjectAsset[];
         errors: { path?: string; message: string }[];
         assets: import("./asset").ProjectAsset[];
+      }>
+    >;
+    delete: (payload: {
+      assetId: string;
+      mode?: "soft" | "removeClips";
+      subprojectPath?: string;
+    }) => Promise<
+      IpcResult<{
+        deleted: boolean;
+        blocked?: boolean;
+        refs?: { trackId: string; clipId: string; clipName: string }[];
+        removedClips?: number;
+        timelineUpdated?: boolean;
+        assets: import("./asset").ProjectAsset[];
+      }>
+    >;
+    resolveFileUrl: (payload: {
+      assetId: string;
+    }) => Promise<IpcResult<{ url: string }>>;
+    onImportProgress: (
+      callback: (data: {
+        phase: "importing" | "done";
+        done: number;
+        total: number;
+        current?: string;
+      }) => void,
+    ) => void;
+  };
+  preset: {
+    list: () => Promise<
+      IpcResult<
+        {
+          id: string;
+          name: string;
+          category: string;
+          categoryLabel: string;
+          description: string;
+          source: string;
+        }[]
+      >
+    >;
+    apply: (payload: {
+      presetId: string;
+      subprojectPath?: string;
+    }) => Promise<
+      IpcResult<{
+        timeline: Timeline;
+        presetId: string;
+        presetName: string;
+        generate?: { previewReload?: boolean };
+      }>
+    >;
+    save: (payload: {
+      name: string;
+      description?: string;
+      category?: string;
+      subprojectPath?: string;
+    }) => Promise<
+      IpcResult<{
+        id: string;
+        name: string;
+        category: string;
       }>
     >;
   };

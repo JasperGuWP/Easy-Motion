@@ -1,0 +1,71 @@
+{
+  "id": "preset-title-fade-in",
+  "name": "标题-淡入",
+  "category": "title",
+  "description": "标题从下方淡入，适合开场",
+  "source": "builtin",
+  "timeline": {
+    "tracks": [
+      {
+        "id": "preset-track-title",
+        "name": "标题文字",
+        "type": "text",
+        "order": 0,
+        "visible": true,
+        "locked": false,
+        "muted": false,
+        "clips": [
+          {
+            "id": "preset-clip-title",
+            "type": "text",
+            "name": "标题",
+            "startInFrames": 0,
+            "durationInFrames": 60,
+            "source": {
+              "kind": "inline",
+              "content": "你的标题"
+            },
+            "transform": {
+              "position": { "x": 640, "y": 380 },
+              "scale": 1,
+              "rotation": 0,
+              "opacity": 1
+            },
+            "style": {
+              "fontFamily": "Inter, sans-serif",
+              "fontSize": 56,
+              "color": "#f8fafc",
+              "textAlign": "center"
+            },
+            "keyframes": [
+              {
+                "property": "transform.opacity",
+                "frame": 0,
+                "value": 0,
+                "easing": "ease-out"
+              },
+              {
+                "property": "transform.opacity",
+                "frame": 20,
+                "value": 1,
+                "easing": "ease-out"
+              },
+              {
+                "property": "transform.position.y",
+                "frame": 0,
+                "value": 420,
+                "easing": "ease-out"
+              },
+              {
+                "property": "transform.position.y",
+                "frame": 20,
+                "value": 380,
+                "easing": "ease-out"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -25,7 +25,7 @@ async function run() {
   }
 
   const session = new AgentTimelineSession(projectPath, SUBPROJECT);
-  const fast = tryFastPathTitle(session, "创建一个标题写着 Hello");
+  const fast = await tryFastPathTitle(session, "创建一个标题写着 Hello");
   if (!fast?.success) {
     throw new Error(`fast path failed: ${fast?.error}`);
   }
@@ -48,20 +48,20 @@ async function run() {
   }
 
   const session2 = new AgentTimelineSession(projectPath, SUBPROJECT);
-  const trackRes = executeTool(session2, "createTrack", {
+  const trackRes = await executeTool(session2, "createTrack", {
     name: "副标题",
     type: "text",
   });
   if (!trackRes.success) throw new Error("createTrack failed");
 
-  const clipRes = executeTool(session2, "createClip", {
+  const clipRes = await executeTool(session2, "createClip", {
     trackId: trackRes.data.trackId,
     name: "副标题片段",
     source: { kind: "inline", content: "World" },
   });
   if (!clipRes.success) throw new Error("createClip failed");
 
-  const queryRes = executeTool(session2, "queryElement", {
+  const queryRes = await executeTool(session2, "queryElement", {
     query: "Hello",
     type: "clip",
   });
@@ -72,7 +72,7 @@ async function run() {
   await session2.commit();
 
   const session3 = new AgentTimelineSession(projectPath, SUBPROJECT);
-  const fontFast = tryFastPathFontSize(session3, "字体大一点");
+  const fontFast = await tryFastPathFontSize(session3, "字体大一点");
   if (!fontFast?.success) {
     throw new Error(`font fast path failed: ${fontFast?.error}`);
   }

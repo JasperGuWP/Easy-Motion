@@ -17,7 +17,7 @@ async function run() {
   const projectPath = created.path;
 
   const session = new AgentTimelineSession(projectPath, SUBPROJECT);
-  const seeded = tryFastPathTitle(session, "创建一个标题写着 Hello");
+  const seeded = await tryFastPathTitle(session, "创建一个标题写着 Hello");
   if (!seeded?.success) throw new Error("seed title failed");
   await session.commit();
 

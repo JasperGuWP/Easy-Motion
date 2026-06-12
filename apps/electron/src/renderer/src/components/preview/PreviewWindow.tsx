@@ -14,6 +14,7 @@ import {
 
 } from "@/lib/preview-messages";
 
+import { useOsFileAssetDrop } from "@/hooks/useOsFileAssetDrop";
 import { usePreviewBootstrap } from "@/hooks/usePreviewBootstrap";
 
 import { usePlaybackStore } from "@/stores/playbackStore";
@@ -58,6 +59,11 @@ export function PreviewWindow() {
   const setCurrentFrame = useTimelineStore((s) => s.setCurrentFrame);
 
   const timeline = useTimelineStore((s) => s.timeline);
+  const currentFrame = useTimelineStore((s) => s.currentFrame);
+
+  const osDrop = useOsFileAssetDrop({
+    resolveFrame: () => currentFrame,
+  });
 
   const setPlaying = usePlaybackStore((s) => s.setPlaying);
 
@@ -243,7 +249,11 @@ export function PreviewWindow() {
 
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-black">
 
-      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3">
+      <div
+        className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-3"
+        onDragOver={osDrop.onDragOver}
+        onDrop={(e) => void osDrop.onDrop(e)}
+      >
 
         {showOverlay && (
 
