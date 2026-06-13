@@ -33,7 +33,7 @@ pnpm dev          # Vite (127.0.0.1:5173) + Electron — 日常 UI 开发
 pnpm dev:all      # 上述 + Python（8000 被占用时自动试 8001–8019）
 ```
 
-**AI 助手（M5 Phase 0）**：复制 `apps/electron/.env.example` 为 `apps/electron/.env`，填写 `ANTHROPIC_API_KEY`。未配置时 AI Tab 会提示 `E2804`。
+**AI 助手（M5）**：可在应用内 **AI 助手 → 齿轮设置** 配置 LLM（Key 加密存于 `~/.easymotion/secrets.json`）。开发后备：复制 `apps/electron/.env.example` 为 `.env` 并填写 `ANTHROPIC_API_KEY`。
 
 | 命令 | 作用 |
 |------|------|

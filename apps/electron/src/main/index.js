@@ -6,6 +6,7 @@ const { registerTimelineHandlers } = require("./ipc-handlers/timeline");
 const { registerPreviewHandlers } = require("./ipc-handlers/preview");
 const { registerAssetHandlers } = require("./ipc-handlers/asset");
 const { registerLlmHandlers } = require("./ipc-handlers/llm");
+const { registerSettingsHandlers } = require("./ipc-handlers/settings");
 const previewService = require("./services/preview-service");
 const { ensureDir } = require("./services/file-service");
 const { getConfigDir } = require("./utils/paths");
@@ -61,6 +62,7 @@ app.whenReady().then(() => {
   registerPreviewHandlers();
   registerAssetHandlers();
   registerLlmHandlers();
+  registerSettingsHandlers();
   createWindow();
 
   app.on("activate", () => {

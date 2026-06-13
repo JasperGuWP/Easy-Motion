@@ -50,4 +50,10 @@ contextBridge.exposeInMainWorld("easyMotion", {
       return () => ipcRenderer.removeListener("renderer:llm:chunk", listener);
     },
   },
+  settings: {
+    get: (payload) => invoke("main:settings:get", payload),
+    update: (payload) => invoke("main:settings:update", payload),
+    setLlmApiKey: (payload) => invoke("main:settings:setLlmApiKey", payload),
+    validateLLMKey: (payload) => invoke("main:settings:validateLLMKey", payload),
+  },
 });

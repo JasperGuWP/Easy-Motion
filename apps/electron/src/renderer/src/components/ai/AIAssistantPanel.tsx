@@ -1,6 +1,7 @@
-import { Bot, Loader2, Sparkles } from "lucide-react";
+import { Bot, Loader2, Settings, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { LLMSettingsDialog } from "@/components/ai/LLMSettingsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,12 +23,47 @@ export function AIAssistantPanel() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [llmConfigured, setLlmConfigured] = useState<boolean | null>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const activeRequestRef = useRef<string | null>(null);
+  const promptedForKeyRef = useRef(false);
+
+  const refreshLlmStatus = useCallback(async () => {
+    const api = getEasyMotion()?.settings;
+    if (!api) {
+      setLlmConfigured(false);
+      return;
+    }
+
+    const result = await api.get({ keys: ["llm"] });
+    if (!result.success || !result.data?.llm) {
+      setLlmConfigured(false);
+      return;
+    }
+
+    const configured = Boolean(result.data.llm.apiKeyConfigured);
+    setLlmConfigured(configured);
+
+    if (!configured && !promptedForKeyRef.current) {
+      promptedForKeyRef.current = true;
+      toast.info("尚未配置 LLM API Key", {
+        description: "点击右上角齿轮打开设置",
+        action: {
+          label: "去设置",
+          onClick: () => setSettingsOpen(true),
+        },
+      });
+    }
+  }, []);
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    void refreshLlmStatus();
+  }, [refreshLlmStatus]);
 
   useEffect(() => {
     const api = getEasyMotion()?.llm;
@@ -70,6 +106,16 @@ export function AIAssistantPanel() {
       return;
     }
 
+    if (llmConfigured === false) {
+      toast.error("请先配置 LLM API Key", {
+        action: {
+          label: "打开设置",
+          onClick: () => setSettingsOpen(true),
+        },
+      });
+      return;
+    }
+
     const userMessage = createMessage("user", text);
     const history = [...messages, userMessage].map(({ role, content }) => ({
       role,
@@ -94,7 +140,7 @@ export function AIAssistantPanel() {
       });
       return;
     }
-  }, [input, isStreaming, messages]);
+  }, [input, isStreaming, llmConfigured, messages]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -105,8 +151,26 @@ export function AIAssistantPanel() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col text-sm">
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
+        <span className="text-xs font-medium text-muted-foreground">AI 助手</span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="LLM 设置"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Settings className="h-4 w-4" />
+        </Button>
+      </div>
+
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-3 p-3">
+          {llmConfigured === false && (
+            <div className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              尚未配置 API Key。点击右上角齿轮，或继续使用开发环境 `.env` 后备。
+            </div>
+          )}
           {messages.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
               <Bot className="h-8 w-8 text-muted-foreground/70" aria-hidden />
@@ -167,6 +231,12 @@ export function AIAssistantPanel() {
           </Button>
         </div>
       </div>
+
+      <LLMSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onSaved={() => void refreshLlmStatus()}
+      />
     </div>
   );
 }

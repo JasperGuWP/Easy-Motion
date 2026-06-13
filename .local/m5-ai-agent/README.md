@@ -7,10 +7,10 @@
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| LLM 流式代理 | 🟡 本地未提交 | `llm-service.js` + IPC + 聊天 UI |
+| LLM 流式代理 | ✅ Phase 0 | `main:llm:*` + 聊天 UI |
 | 对话持久化 | ⬜ 未开始 | `conversation.json` |
 | Agent + 时间线工具 | ⬜ 未开始 | 核心闭环 |
-| 设置 / Key 安全 | ⬜ 未开始 | `secrets.json` + 设置面板 |
+| 设置 / Key 安全 | ✅ Phase 1 | `settings.json` + `secrets.json` + 设置对话框 |
 | 多模态 | ⬜ 未开始 | P2，可放最后 |
 
 **整体约 15–20%**（仅「能聊天」，不能改时间线）。Phase 0 代码在分支 `feat/m5-llm-chat-foundation`（待合入 `main`）。

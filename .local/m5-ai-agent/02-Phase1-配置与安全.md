@@ -13,19 +13,19 @@
 
 ### 主进程
 
-- [ ] `services/settings-service.js` — 读写 `~/.easymotion/settings.json`
-- [ ] `services/secrets-service.js` — `app.safeStorage` 加密 API Key → `secrets.json`
-- [ ] `ipc-handlers/settings.js` — `main:settings:get`、`update`、`validateLLMKey`
-- [ ] 改造 `llm-service.js`：
+- [x] `services/settings-service.js` — 读写 `~/.easymotion/settings.json`
+- [x] `services/secrets-service.js` — `app.safeStorage` 加密 API Key → `secrets.json`
+- [x] `ipc-handlers/settings.js` — `main:settings:get`、`update`、`validateLLMKey`
+- [x] 改造 `llm-service.js`：
   - 从 secrets 读 Key（`.env` 仅作 dev fallback）
   - 抽象 `LlmProvider`：`anthropic` | `openai`
   - 请求参数支持 `provider`、`model`（对齐 IPC 规范）
 
 ### 渲染进程
 
-- [ ] `components/ai/LLMSettingsDialog.tsx` — 提供商、Base URL、Model、API Key
-- [ ] AI Tab 顶部齿轮入口；首次无 Key 时引导打开
-- [ ] 类型：`types/settings.ts`
+- [x] `components/ai/LLMSettingsDialog.tsx` — 提供商、Base URL、Model、API Key
+- [x] AI Tab 顶部齿轮入口；首次无 Key 时引导打开
+- [x] 类型：`types/settings.ts`
 
 ### 配置字段（最小集）
 

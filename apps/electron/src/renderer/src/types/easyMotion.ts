@@ -1,4 +1,5 @@
 import type { Timeline } from "./timeline";
+import type { AppSettings, LlmProvider } from "./settings";
 
 export interface IpcError {
   message?: string;
@@ -130,11 +131,34 @@ export interface EasyMotionApi {
     stream: (payload: {
       requestId?: string;
       messages: LlmMessage[];
+      provider?: LlmProvider;
+      model?: string;
+      baseUrl?: string;
+      temperature?: number;
+      maxTokens?: number;
     }) => Promise<IpcResult<{ requestId: string }>>;
     cancel: (payload: {
       requestId: string;
     }) => Promise<IpcResult<{ cancelled: boolean }>>;
     onChunk: (callback: (data: LlmChunkPayload) => void) => () => void;
+  };
+  settings: {
+    get: (payload?: {
+      keys?: string[];
+    }) => Promise<IpcResult<AppSettings>>;
+    update: (payload: {
+      settings: Partial<AppSettings>;
+    }) => Promise<IpcResult<{ updated: boolean; settings: AppSettings }>>;
+    setLlmApiKey: (payload: {
+      provider?: LlmProvider;
+      apiKey: string;
+    }) => Promise<IpcResult<{ stored: boolean }>>;
+    validateLLMKey: (payload?: {
+      provider?: LlmProvider;
+      baseUrl?: string;
+      model?: string;
+      apiKey?: string;
+    }) => Promise<IpcResult<{ valid: boolean; error?: string }>>;
   };
 }
 
