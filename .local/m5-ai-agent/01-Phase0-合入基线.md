@@ -29,7 +29,7 @@
 - [ ] `pnpm dev` 启动后，AI Tab 可发送消息并流式显示回复
 - [ ] 未配置 Key 时提示 `E2804`
 - [ ] `pnpm lint` / CI 通过
-- [ ] 仓库中无真实 API Key
+- [x] 仓库中无真实 API Key（`.env.example` 已提交，`.env` 已 gitignore）
 
 ## 评审要点
 
