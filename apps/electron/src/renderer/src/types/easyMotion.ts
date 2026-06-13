@@ -1,5 +1,6 @@
 import type { Timeline } from "./timeline";
 import type { AppSettings, LlmProvider } from "./settings";
+import type { Conversation } from "./conversation";
 
 export interface IpcError {
   message?: string;
@@ -159,6 +160,31 @@ export interface EasyMotionApi {
       model?: string;
       apiKey?: string;
     }) => Promise<IpcResult<{ valid: boolean; error?: string }>>;
+  };
+  conversation: {
+    load: (payload?: {
+      subprojectId?: string;
+      subprojectPath?: string;
+    }) => Promise<
+      IpcResult<{
+        conversation: Conversation;
+        subprojectPath?: string;
+        subprojectId?: string;
+      }>
+    >;
+    save: (payload: {
+      subprojectId?: string;
+      subprojectPath?: string;
+      conversation: Conversation;
+    }) => Promise<
+      IpcResult<{ saved: boolean; conversation: Conversation }>
+    >;
+    clear: (payload?: {
+      subprojectId?: string;
+      subprojectPath?: string;
+    }) => Promise<
+      IpcResult<{ saved: boolean; conversation: Conversation }>
+    >;
   };
 }
 

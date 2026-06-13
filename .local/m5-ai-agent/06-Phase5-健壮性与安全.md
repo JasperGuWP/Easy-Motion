@@ -2,55 +2,41 @@
 
 **工期**：2 天  
 **依赖**：Phase 4  
-**PR**：`feat/m5-agent-resilience`
+**PR**：`feat/m5-agent-resilience`  
+**权威依据**：[技术规格.md](../../docs/requirements/技术规格.md) §错误恢复、[错误码统一字典.md](../../docs/requirements/错误码统一字典.md)
 
 ## 目标
 
-满足验收 **A4**、**A5**；对齐 [技术规格.md](../../docs/requirements/技术规格.md) Agent 降级与安全设计。
+满足 **A4**、**A5**。
 
 ## 任务清单
 
-### 超时与重试（A4）
+### LangChain / LLM 超时（A4）
 
-- [ ] `llm-service`：首包 90s 超时 → 自动重试 1 次
-- [ ] 两次失败 → `fallback-templates.js` 简化模式：
-  - 解析用户文本是否含「标题/Hello」等关键词
-  - 硬编码 `createTrack(text)` + `createClip` 基础淡入
-- [ ] UI：system 消息「已进入简化模式，仅生成基础文字动画」
+- [ ] `AgentExecutor` 外包超时控制（90s 首响应，对齐 IPC 规范 §llm）
+- [ ] 失败自动重试 1 次（技术规格 §LLM 调用失败）
+- [ ] 仍失败 → `agent/fallback-templates.js` 简化模式（`createTrack` + `createClip("Hello")`）
+- [ ] system 消息通知用户进入简化模式
 
 ### 代码安全（A5）
 
-- [ ] Generator 写入前扫描生成 TSX：
-  - 禁止 `require('fs')`、`child_process`、`eval`、`Function(`
-  - 禁止非白名单 import
-- [ ] 违规 → 拒绝写入 + `E2xxx` + 提示用户重试
-- [ ] 单元测试覆盖典型恶意片段
+- [ ] Generator 写入前 TSX 白名单扫描（禁止 `fs`、`child_process`、`eval`）
+- [ ] LangChain Tool 层仅 mutate timeline JSON，不直接写任意 TSX
+- [ ] 违规 → 拒绝 + 错误码
 
-### 错误与并发
+### Agent 取消
 
-- [ ] 流中断 → `E2810`，UI toast + 消息内 `[错误]`
-- [ ] 新 `conversation:send` 自动 `cancel` 上一个 LLM 请求（IPC 规范）
-- [ ] `AgentStatusBar` 显示 `error` 态 + 重试按钮
+- [ ] `main:conversation:cancel` → `AbortController` 中止 LangChain stream + 进行中的 Tool
+- [ ] 取消后不写入 partial timeline
 
-### 取消
-
-- [ ] UI 停止按钮 → `main:conversation:cancel` + `main:llm:cancel`
-- [ ] 取消后 Agent 不写入 partial timeline
-
-## 验收
-
-- [ ] 断网 / 无效响应：明确错误，不 corrupt timeline
-- [ ] 简化模式至少能生成 Hello 标题
-- [ ] 含 `fs` 的生成结果被拦截
-
-## 错误码
-
-对齐 [错误码统一字典.md](../../docs/requirements/错误码统一字典.md)：
+### 错误码
 
 | 码 | 场景 |
 |----|------|
 | E2700 | 消息发送失败 |
-| E2701 | conversation 文件损坏 |
-| E2800 | LLM 未知错误 |
-| E2804 | API Key 无效 |
-| E2810 | 流式中断 |
+| E2701 | conversation 损坏 |
+| E2800/E2804/E2810 | LLM 域 |
+
+## 验收
+
+断网/无效 Key/流中断有明确 UI；简化模式可生成基础文字；恶意 TSX 被拦截。

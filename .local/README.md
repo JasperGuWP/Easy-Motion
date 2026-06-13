@@ -8,13 +8,13 @@
 |--------|------|
 | [`shadcn-migration/`](./shadcn-migration/) | shadcn/ui 迁移计划、阶段清单与完成记录 |
 | [`theme-refresh/`](./theme-refresh/) | 主题焕新研究（方案 A/B 对比、token 草案、实施清单） |
-| [`m5-ai-agent/`](./m5-ai-agent/) | M5 AI 对话面板 + Agent 集成分阶段开发计划 |
+| [`m5-ai-agent/`](./m5-ai-agent/) | M5 AI 面板 + **LangChain Agent** 分阶段计划（对齐 `docs/requirements`） |
 
 ## 从哪里读起
 
 1. **刚接手 UI**：[`shadcn-migration/00-概述与原则.md`](./shadcn-migration/00-概述与原则.md) → [`shadcn-migration/11-迁移完成记录.md`](./shadcn-migration/11-迁移完成记录.md)
 2. **改配色 / token**：[`theme-refresh/README.md`](./theme-refresh/README.md) → [`theme-refresh/02-推荐方案.md`](./theme-refresh/02-推荐方案.md)
-3. **做 M5 AI / Agent**：[`m5-ai-agent/README.md`](./m5-ai-agent/README.md) → [`m5-ai-agent/00-概述与现状.md`](./m5-ai-agent/00-概述与现状.md)
+3. **做 M5 AI / LangChain Agent**：[`m5-ai-agent/README.md`](./m5-ai-agent/README.md) → [LLM-Agent设计.md](../docs/requirements/LLM-Agent设计.md)
 4. **权威规范**（对外文档）：[`docs/design-system/easymotion/MASTER.md`](../docs/design-system/easymotion/MASTER.md)
 
 ## 与 `docs/` 的关系

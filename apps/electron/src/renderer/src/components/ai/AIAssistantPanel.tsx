@@ -6,27 +6,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import type { LlmMessage } from "@/types/easyMotion";
+import {
+  getActiveConversationStreamRequestId,
+  useConversationStore,
+} from "@/stores/conversationStore";
 import { getEasyMotion } from "@/types/easyMotion";
 
-type ChatMessage = LlmMessage & { id: string };
-
-function createMessage(role: LlmMessage["role"], content: string): ChatMessage {
-  return {
-    id: `${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    role,
-    content,
-  };
-}
-
 export function AIAssistantPanel() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
+  const messages = useConversationStore((state) => state.messages);
+  const inputText = useConversationStore((state) => state.inputText);
+  const isStreaming = useConversationStore((state) => state.isStreaming);
+  const loadError = useConversationStore((state) => state.loadError);
+  const setInputText = useConversationStore((state) => state.setInputText);
+  const sendMessage = useConversationStore((state) => state.sendMessage);
+  const appendStreamingChunk = useConversationStore(
+    (state) => state.appendStreamingChunk
+  );
+  const handleStreamDone = useConversationStore((state) => state.handleStreamDone);
+
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [llmConfigured, setLlmConfigured] = useState<boolean | null>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
-  const activeRequestRef = useRef<string | null>(null);
   const promptedForKeyRef = useRef(false);
 
   const refreshLlmStatus = useCallback(async () => {
@@ -70,42 +70,21 @@ export function AIAssistantPanel() {
     if (!api) return;
 
     const unsubscribe = api.onChunk(({ requestId, chunk, isDone }) => {
-      if (requestId !== activeRequestRef.current) return;
+      if (requestId !== getActiveConversationStreamRequestId()) return;
 
       if (chunk) {
-        setMessages((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (!last || last.role !== "assistant") {
-            next.push(createMessage("assistant", chunk));
-            return next;
-          }
-          next[next.length - 1] = { ...last, content: last.content + chunk };
-          return next;
-        });
+        appendStreamingChunk(chunk);
       }
 
       if (isDone) {
-        activeRequestRef.current = null;
-        setIsStreaming(false);
+        handleStreamDone();
       }
     });
 
     return unsubscribe;
-  }, []);
+  }, [appendStreamingChunk, handleStreamDone]);
 
-  const sendMessage = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isStreaming) return;
-
-    const api = getEasyMotion()?.llm;
-    if (!api) {
-      toast.error("AI 服务不可用", {
-        description: "请重启应用后重试",
-      });
-      return;
-    }
-
+  const onSend = async () => {
     if (llmConfigured === false) {
       toast.error("请先配置 LLM API Key", {
         action: {
@@ -115,37 +94,13 @@ export function AIAssistantPanel() {
       });
       return;
     }
-
-    const userMessage = createMessage("user", text);
-    const history = [...messages, userMessage].map(({ role, content }) => ({
-      role,
-      content,
-    }));
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsStreaming(true);
-
-    const requestId = crypto.randomUUID();
-    activeRequestRef.current = requestId;
-    setMessages((prev) => [...prev, createMessage("assistant", "")]);
-
-    const result = await api.stream({ requestId, messages: history });
-    if (!result.success) {
-      activeRequestRef.current = null;
-      setIsStreaming(false);
-      setMessages((prev) => prev.filter((m) => m.role !== "assistant" || m.content));
-      toast.error("发送失败", {
-        description: result.error?.message ?? "未知错误",
-      });
-      return;
-    }
-  }, [input, isStreaming, llmConfigured, messages]);
+    await sendMessage();
+  };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      void sendMessage();
+      void onSend();
     }
   };
 
@@ -166,6 +121,11 @@ export function AIAssistantPanel() {
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-3 p-3">
+          {loadError && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {loadError}
+            </div>
+          )}
           {llmConfigured === false && (
             <div className="rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               尚未配置 API Key。点击右上角齿轮，或继续使用开发环境 `.env` 后备。
@@ -187,7 +147,9 @@ export function AIAssistantPanel() {
                   "max-w-[92%] rounded-lg px-3 py-2 text-sm leading-relaxed",
                   message.role === "user"
                     ? "ml-auto bg-primary text-primary-foreground"
-                    : "mr-auto bg-muted text-foreground"
+                    : message.role === "system"
+                      ? "mx-auto bg-muted/60 text-center text-xs text-muted-foreground"
+                      : "mr-auto bg-muted text-foreground"
                 )}
               >
                 {message.content ||
@@ -210,8 +172,8 @@ export function AIAssistantPanel() {
             type="text"
             placeholder="描述你的动画..."
             className="flex-1"
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
+            value={inputText}
+            onChange={(event) => setInputText(event.target.value)}
             onKeyDown={handleKeyDown}
             disabled={isStreaming}
           />
@@ -220,8 +182,8 @@ export function AIAssistantPanel() {
             size="icon"
             className="shrink-0"
             aria-label="发送"
-            disabled={isStreaming || !input.trim()}
-            onClick={() => void sendMessage()}
+            disabled={isStreaming || !inputText.trim()}
+            onClick={() => void onSend()}
           >
             {isStreaming ? (
               <Loader2 className="h-4 w-4 animate-spin" />

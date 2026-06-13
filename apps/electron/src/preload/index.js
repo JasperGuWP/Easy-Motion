@@ -56,4 +56,9 @@ contextBridge.exposeInMainWorld("easyMotion", {
     setLlmApiKey: (payload) => invoke("main:settings:setLlmApiKey", payload),
     validateLLMKey: (payload) => invoke("main:settings:validateLLMKey", payload),
   },
+  conversation: {
+    load: (payload) => invoke("main:conversation:load", payload),
+    save: (payload) => invoke("main:conversation:save", payload),
+    clear: (payload) => invoke("main:conversation:clear", payload),
+  },
 });

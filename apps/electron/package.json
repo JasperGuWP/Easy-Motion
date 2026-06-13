@@ -12,7 +12,8 @@
     "test:m1": "node scripts/test-file-service.js && node scripts/test-project-service.js",
     "test:m2": "node scripts/test-timeline-schema.js && node scripts/test-generator.js && node scripts/test-timeline-service.js && node scripts/test-remotion-project.js && node scripts/test-preview-visibility.js",
     "test:m3": "node scripts/test-generator.js",
-    "test": "pnpm test:m1 && pnpm test:m2 && pnpm test:m3"
+    "test:m5": "node scripts/test-conversation-service.js",
+    "test": "pnpm test:m1 && pnpm test:m2 && pnpm test:m3 && pnpm test:m5"
   },
   "dependencies": {
     "@easymotion/shared": "workspace:*",
@@ -21,6 +22,7 @@
     "clsx": "^2.1.1",
     "electron": "^42.3.1",
     "lucide-react": "^0.511.0",
+    "mitt": "^3.0.1",
     "radix-ui": "^1.5.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

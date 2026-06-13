@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { getEasyMotion } from "@/types/easyMotion";
 import { useTimelineStore } from "@/stores/timelineStore";
 import { useAssetStore } from "@/stores/assetStore";
+import { useConversationStore } from "@/stores/conversationStore";
 
 export interface CurrentProject {
   name: string;
@@ -72,6 +73,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
     await Promise.all([
       useTimelineStore.getState().loadTimeline(),
       useAssetStore.getState().loadAssets(),
+      useConversationStore.getState().loadConversation(),
     ]);
     return true;
   },
@@ -101,6 +103,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
     await Promise.all([
       useTimelineStore.getState().loadTimeline(),
       useAssetStore.getState().loadAssets(),
+      useConversationStore.getState().loadConversation(),
     ]);
     return true;
   },
