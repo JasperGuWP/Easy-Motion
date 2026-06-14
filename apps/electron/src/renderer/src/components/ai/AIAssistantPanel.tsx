@@ -1,33 +1,133 @@
-import { Bot, Loader2, Settings, Sparkles } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { LLMSettingsDialog } from "@/components/ai/LLMSettingsDialog";
+import { HSCROLL_HOVER_EVENT } from "@/components/conversation/HorizontalScrollRegion";
+import { GenerationProgress } from "@/components/conversation/GenerationProgress";
+import { MessageInput } from "@/components/conversation/MessageInput";
+import { MessageList } from "@/components/conversation/MessageList";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
 import {
   getActiveConversationStreamRequestId,
   useConversationStore,
 } from "@/stores/conversationStore";
+import { useTimelineStore } from "@/stores/timelineStore";
 import { getEasyMotion } from "@/types/easyMotion";
 
 export function AIAssistantPanel() {
   const messages = useConversationStore((state) => state.messages);
   const inputText = useConversationStore((state) => state.inputText);
+  const attachedImages = useConversationStore((state) => state.attachedImages);
   const isStreaming = useConversationStore((state) => state.isStreaming);
   const loadError = useConversationStore((state) => state.loadError);
   const setInputText = useConversationStore((state) => state.setInputText);
   const sendMessage = useConversationStore((state) => state.sendMessage);
+  const cancelMessage = useConversationStore((state) => state.cancelMessage);
+  const pickAiReferenceImages = useConversationStore(
+    (state) => state.pickAiReferenceImages
+  );
+  const removeImage = useConversationStore((state) => state.removeImage);
+  const reorderImages = useConversationStore((state) => state.reorderImages);
   const appendStreamingChunk = useConversationStore(
     (state) => state.appendStreamingChunk
   );
-  const handleStreamDone = useConversationStore((state) => state.handleStreamDone);
+  const setAgentStatusFromMain = useConversationStore(
+    (state) => state.setAgentStatusFromMain
+  );
+  const handleConversationComplete = useConversationStore(
+    (state) => state.handleConversationComplete
+  );
+  const handleConversationError = useConversationStore(
+    (state) => state.handleConversationError
+  );
+  const handleMessageAction = useConversationStore(
+    (state) => state.handleMessageAction
+  );
+  const agentStatus = useConversationStore((state) => state.agentStatus);
+  const streamingMessageId = useConversationStore((state) => state.streamingMessageId);
+  const selectedClipId = useTimelineStore((state) => state.selectedClipId);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [llmConfigured, setLlmConfigured] = useState<boolean | null>(null);
-  const scrollAnchorRef = useRef<HTMLDivElement>(null);
+  const scrollViewportRef = useRef<HTMLDivElement>(null);
+  const scrollContentRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
+  const hScrollHoverRef = useRef(false);
   const promptedForKeyRef = useRef(false);
+
+  const scrollChatToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (hScrollHoverRef.current) return;
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior });
+  }, []);
+
+  const handleChatScroll = useCallback(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+    const distanceFromBottom =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < 64;
+  }, []);
+
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (last?.role === "user") {
+      stickToBottomRef.current = true;
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (!stickToBottomRef.current && !isStreaming) return;
+
+    const frame = requestAnimationFrame(() => {
+      scrollChatToBottom(isStreaming ? "auto" : "smooth");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [messages, isStreaming, agentStatus, scrollChatToBottom]);
+
+  useEffect(() => {
+    const content = scrollContentRef.current;
+    if (!content) return;
+
+    const observer = new ResizeObserver(() => {
+      if (hScrollHoverRef.current) return;
+      if (!stickToBottomRef.current && !isStreaming) return;
+      scrollChatToBottom("auto");
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [isStreaming, scrollChatToBottom]);
+
+  useEffect(() => {
+    const onHScrollHover = (event: Event) => {
+      const active = Boolean(
+        (event as CustomEvent<{ active?: boolean }>).detail?.active
+      );
+      hScrollHoverRef.current = active;
+    };
+
+    document.addEventListener(HSCROLL_HOVER_EVENT, onHScrollHover);
+    return () => document.removeEventListener(HSCROLL_HOVER_EVENT, onHScrollHover);
+  }, []);
+
+  useEffect(() => {
+    const viewport = scrollViewportRef.current;
+    if (!viewport) return;
+
+    const onWheel = (event: WheelEvent) => {
+      if (!(event.target instanceof Element)) return;
+      const region = event.target.closest("[data-hscroll-region]");
+      if (!(region instanceof HTMLElement)) return;
+      if (region.scrollWidth <= region.clientWidth + 1) return;
+
+      event.preventDefault();
+    };
+
+    viewport.addEventListener("wheel", onWheel, { capture: true, passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel, { capture: true });
+  }, []);
 
   const refreshLlmStatus = useCallback(async () => {
     const api = getEasyMotion()?.settings;
@@ -58,31 +158,44 @@ export function AIAssistantPanel() {
   }, []);
 
   useEffect(() => {
-    scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  useEffect(() => {
     void refreshLlmStatus();
   }, [refreshLlmStatus]);
 
   useEffect(() => {
-    const api = getEasyMotion()?.llm;
+    const api = getEasyMotion()?.conversation;
     if (!api) return;
 
-    const unsubscribe = api.onChunk(({ requestId, chunk, isDone }) => {
+    const unsubChunk = api.onChunk(({ requestId, chunk }) => {
       if (requestId !== getActiveConversationStreamRequestId()) return;
-
-      if (chunk) {
-        appendStreamingChunk(chunk);
-      }
-
-      if (isDone) {
-        handleStreamDone();
-      }
+      if (chunk) appendStreamingChunk(chunk);
     });
 
-    return unsubscribe;
-  }, [appendStreamingChunk, handleStreamDone]);
+    const unsubComplete = api.onComplete((payload) => {
+      void handleConversationComplete(payload);
+    });
+
+    const unsubError = api.onError(({ requestId, message }) => {
+      if (requestId !== getActiveConversationStreamRequestId()) return;
+      handleConversationError(message);
+    });
+
+    const unsubStatus = api.onStatus(({ requestId, status }) => {
+      if (requestId !== getActiveConversationStreamRequestId()) return;
+      setAgentStatusFromMain(status);
+    });
+
+    return () => {
+      unsubChunk();
+      unsubComplete();
+      unsubError();
+      unsubStatus();
+    };
+  }, [
+    appendStreamingChunk,
+    handleConversationComplete,
+    handleConversationError,
+    setAgentStatusFromMain,
+  ]);
 
   const onSend = async () => {
     if (llmConfigured === false) {
@@ -97,15 +210,8 @@ export function AIAssistantPanel() {
     await sendMessage();
   };
 
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void onSend();
-    }
-  };
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col text-sm">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col text-sm">
       <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
         <span className="text-xs font-medium text-muted-foreground">AI 助手</span>
         <Button
@@ -119,8 +225,15 @@ export function AIAssistantPanel() {
         </Button>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-3 p-3">
+      <ScrollArea
+        className="min-h-0 min-w-0 flex-1 overflow-hidden"
+        viewportRef={scrollViewportRef}
+        onScroll={handleChatScroll}
+      >
+        <div
+          ref={scrollContentRef}
+          className="flex w-full min-w-0 flex-col gap-3 overflow-x-hidden p-3"
+        >
           {loadError && (
             <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {loadError}
@@ -131,67 +244,35 @@ export function AIAssistantPanel() {
               尚未配置 API Key。点击右上角齿轮，或继续使用开发环境 `.env` 后备。
             </div>
           )}
-          {messages.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
-              <Bot className="h-8 w-8 text-muted-foreground/70" aria-hidden />
-              <p>向 AI 描述你的动画…</p>
-              <p className="text-xs text-muted-foreground/80">
-                例如：创建一个标题写着 Hello
-              </p>
-            </div>
-          ) : (
-            messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  "max-w-[92%] rounded-lg px-3 py-2 text-sm leading-relaxed",
-                  message.role === "user"
-                    ? "ml-auto bg-primary text-primary-foreground"
-                    : message.role === "system"
-                      ? "mx-auto bg-muted/60 text-center text-xs text-muted-foreground"
-                      : "mr-auto bg-muted text-foreground"
-                )}
-              >
-                {message.content ||
-                  (message.role === "assistant" && isStreaming ? (
-                    <span className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      思考中…
-                    </span>
-                  ) : null)}
-              </div>
-            ))
-          )}
-          <div ref={scrollAnchorRef} />
+          <MessageList
+            messages={messages}
+            isStreaming={isStreaming}
+            agentStatus={agentStatus}
+            streamingMessageId={streamingMessageId}
+            selectedClipId={selectedClipId}
+            onExampleSelect={setInputText}
+            onAction={(action, messageId) => void handleMessageAction(action, messageId)}
+            actionsDisabled={isStreaming}
+          />
+          <GenerationProgress status={agentStatus} isStreaming={isStreaming} />
         </div>
       </ScrollArea>
 
       <div className="shrink-0 border-t border-border p-3">
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            placeholder="描述你的动画..."
-            className="flex-1"
-            value={inputText}
-            onChange={(event) => setInputText(event.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isStreaming}
-          />
-          <Button
-            type="button"
-            size="icon"
-            className="shrink-0"
-            aria-label="发送"
-            disabled={isStreaming || !inputText.trim()}
-            onClick={() => void onSend()}
-          >
-            {isStreaming ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        <MessageInput
+          value={inputText}
+          attachedImages={attachedImages}
+          isStreaming={isStreaming}
+          placeholder={
+            selectedClipId ? "描述如何调整选中片段…" : "描述动画或上传参考图…"
+          }
+          onChange={setInputText}
+          onSend={() => void onSend()}
+          onCancel={() => void cancelMessage()}
+          onPickImages={() => void pickAiReferenceImages()}
+          onRemoveImage={removeImage}
+          onReorderImages={reorderImages}
+        />
       </div>
 
       <LLMSettingsDialog

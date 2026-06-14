@@ -427,6 +427,8 @@ function TrackRow({
     dragPreview !== null &&
     dragPreview.targetTrackId === track.id &&
     dragPreview.sourceTrackId !== track.id;
+  const hasSelectedClip =
+    !isGroupHeader && track.clips.some((clip) => clip.id === selectedClipId);
 
   return (
     <div
@@ -437,6 +439,7 @@ function TrackRow({
         locked && "bg-em-surface/20",
         isGroupHeader && "bg-em-surface/10",
         isDropTarget && "bg-em-teal/5",
+        hasSelectedClip && "bg-primary/[0.07]",
       )}
       style={{ height: TRACK_ROW_HEIGHT }}
     >

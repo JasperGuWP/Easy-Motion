@@ -3,6 +3,7 @@
 **工期**：3 天（P2 stretch 部分可延后）  
 **依赖**：Phase 5  
 **PR**：`feat/m5-multimodal`  
+**状态**：✅ 核心完成（2026-06-14）；折叠 ⏭️ 不做（右侧 Tab）  
 **权威依据**：[LLM-Agent设计.md](../../docs/requirements/LLM-Agent设计.md) §视觉解析、[组件库清单.md](../../docs/requirements/组件库清单.md) §2.4
 
 ## 目标
@@ -13,33 +14,38 @@
 
 ### 多模态（LangChain）
 
-- [ ] `MessageInput` + `ImageAttachment` — 上传/预览/排序（组件库清单）
-- [ ] 图片存 `assets/ai-refs/`
-- [ ] `agent/prompts/vision.js` — LLM-Agent设计 §**视觉解析 Prompt**
-- [ ] LangChain 多模态消息：`HumanMessage` content blocks（image_url + text）
-- [ ] layout JSON → `createTrack` / `createClip` Tool 参数
+- [x] `MessageInput` + `ImageAttachment` — 上传/预览
+- [x] 图片存 `assets/ai-refs/`（`ai-ref-service.js`）
+- [x] `agent/prompts/vision.js`
+- [x] `agent/multimodal.js` — `HumanMessage` content blocks
+- [x] `vision-analyze.js` + `layout-mapper.js` → Tool 参数
+- [x] 视觉失败 → 纯文字 Agent + `systemNotice`
 
-### 对话组件树（组件库清单 §2.4）
+### 对话组件树
 
 ```
 AIAssistantPanel
 ├── MessageList
 │   └── MessageItem (+ ActionButtons)
-├── GenerationProgress  ← agentStatus / AgentState
+├── GenerationProgress  ← agentStatus
 └── MessageInput (+ ImageAttachment)
 ```
 
-- [ ] `role: system` — 执行进度、降级、错误
-- [ ] 空状态示例指令可点击填充（UI布局 §7.3 新手引导，可简化）
+- [x] 上述结构已落地
+- [x] `role: system` — 进度、降级、错误
+- [x] 空状态示例指令可点击（`MessageList`）
+
+### 未完成（见 [11-剩余工作与验收.md](./11-剩余工作与验收.md)）
+
+- [x] **历史消息**中 `attachedImages` 缩略图（`MessageImageThumbnails`）
+- [x] **参考图拖拽排序**（`useImageReorder` → `reorderImages`）
+- [x] **对话面板收起/展开** — ⏭️ 不做（右侧 Tab 切换已覆盖；见路线图 `BottomConversationBar` 为可选模式）
 
 ### 明确不做
 
-- `BottomConversationBar` 全展开（组件库标注 v1.0，M5 不实现）
+- `BottomConversationBar` 全展开（v1.0 范围外）
 
 ## 验收（A6）
 
-上传参考图 + 布局描述 → LangChain 视觉链 + Tools → 布局大致合理。
-
-## 降级
-
-视觉解析失败 → 回退纯文字 Agent，system 提示补充描述（路线图风险表）。
+- [x] 上传参考图 + 布局描述 → 视觉链 + Tools — 路径已通
+- ⬜ 布局「大致合理」— 待手测；可标 **M5.1**

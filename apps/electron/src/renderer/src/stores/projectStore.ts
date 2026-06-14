@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ProjectSummary } from "@/types/easyMotion";
 import { getEasyMotion } from "@/types/easyMotion";
 import { useTimelineStore } from "@/stores/timelineStore";
 import { useAssetStore } from "@/stores/assetStore";
@@ -11,19 +12,61 @@ export interface CurrentProject {
 
 interface ProjectState {
   current: CurrentProject | null;
+  localProjects: ProjectSummary[];
+  localScanRoot: string | null;
   isLoading: boolean;
+  isLoadingLocal: boolean;
   error: string | null;
 
   refreshCurrent: () => Promise<void>;
+  loadLocalProjects: () => Promise<void>;
   createProject: (name: string, parentPath?: string) => Promise<boolean>;
   openProjectByPicker: () => Promise<boolean>;
+  openProjectByPath: (path: string) => Promise<boolean>;
   saveProject: () => Promise<boolean>;
+  deleteProject: (path: string) => Promise<boolean>;
   clearError: () => void;
 }
 
-export const useProjectStore = create<ProjectState>((set) => ({
+async function reloadProjectWorkspace() {
+  await Promise.all([
+    useTimelineStore.getState().loadTimeline(),
+    useAssetStore.getState().loadAssets(),
+    useConversationStore.getState().loadConversation(),
+  ]);
+}
+
+async function clearProjectWorkspace() {
+  const api = getEasyMotion();
+  if (api?.preview?.stop) {
+    await api.preview.stop();
+  }
+
+  useTimelineStore.setState({
+    timeline: null,
+    isLoading: false,
+    isSaving: false,
+    isGenerating: false,
+    error: null,
+    currentFrame: 0,
+    selectedTrackId: null,
+    selectedClipId: null,
+    selectedMarkerId: null,
+    hasUnsavedChanges: false,
+    remotionDrift: null,
+    isSyncingRemotion: false,
+    lastRemotionSync: null,
+  });
+  useAssetStore.getState().clear();
+  useConversationStore.getState().resetForProjectClose();
+}
+
+export const useProjectStore = create<ProjectState>((set, get) => ({
   current: null,
+  localProjects: [],
+  localScanRoot: null,
   isLoading: false,
+  isLoadingLocal: false,
   error: null,
 
   clearError: () => set({ error: null }),
@@ -45,6 +88,48 @@ export const useProjectStore = create<ProjectState>((set) => ({
       },
       error: null,
     });
+  },
+
+  loadLocalProjects: async () => {
+    const api = getEasyMotion();
+    if (!api?.project.listLocal) return;
+
+    set({ isLoadingLocal: true });
+    const res = await api.project.listLocal();
+    set({ isLoadingLocal: false });
+
+    if (!res.success || !res.data) {
+      set({ error: res.error?.message ?? "加载项目列表失败" });
+      return;
+    }
+
+    set({
+      localProjects: res.data.projects,
+      localScanRoot: res.data.scanRoot,
+      error: null,
+    });
+  },
+
+  openProjectByPath: async (projectPath) => {
+    const api = getEasyMotion();
+    if (!api?.project.open) {
+      set({ error: "项目 API 不可用" });
+      return false;
+    }
+
+    set({ isLoading: true, error: null });
+    const res = await api.project.open(projectPath);
+    set({ isLoading: false });
+
+    if (!res.success) {
+      set({ error: res.error?.message ?? "打开项目失败" });
+      return false;
+    }
+
+    await get().refreshCurrent();
+    await reloadProjectWorkspace();
+    await get().loadLocalProjects();
+    return true;
   },
 
   createProject: async (name, parentPath) => {
@@ -69,12 +154,9 @@ export const useProjectStore = create<ProjectState>((set) => ({
       return false;
     }
 
-    await useProjectStore.getState().refreshCurrent();
-    await Promise.all([
-      useTimelineStore.getState().loadTimeline(),
-      useAssetStore.getState().loadAssets(),
-      useConversationStore.getState().loadConversation(),
-    ]);
+    await get().refreshCurrent();
+    await reloadProjectWorkspace();
+    await get().loadLocalProjects();
     return true;
   },
 
@@ -90,22 +172,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
       return false;
     }
 
-    set({ isLoading: true, error: null });
-    const res = await api.project.open(picked.data.path);
-    set({ isLoading: false });
-
-    if (!res.success) {
-      set({ error: res.error?.message ?? "打开项目失败" });
-      return false;
-    }
-
-    await useProjectStore.getState().refreshCurrent();
-    await Promise.all([
-      useTimelineStore.getState().loadTimeline(),
-      useAssetStore.getState().loadAssets(),
-      useConversationStore.getState().loadConversation(),
-    ]);
-    return true;
+    return get().openProjectByPath(picked.data.path);
   },
 
   saveProject: async () => {
@@ -127,6 +194,39 @@ export const useProjectStore = create<ProjectState>((set) => ({
       return false;
     }
 
+    await get().loadLocalProjects();
+    return true;
+  },
+
+  deleteProject: async (projectPath) => {
+    const api = getEasyMotion();
+    if (!api?.project.delete) {
+      set({ error: "项目 API 不可用" });
+      return false;
+    }
+
+    const confirmed = window.confirm(
+      `确认删除项目？\n${projectPath}\n\n此操作不可恢复。`,
+    );
+    if (!confirmed) return false;
+
+    const wasCurrent = get().current?.path === projectPath;
+
+    set({ isLoading: true, error: null });
+    const res = await api.project.delete(projectPath);
+    set({ isLoading: false });
+
+    if (!res.success) {
+      set({ error: res.error?.message ?? "删除项目失败" });
+      return false;
+    }
+
+    if (wasCurrent) {
+      await clearProjectWorkspace();
+    }
+
+    await get().refreshCurrent();
+    await get().loadLocalProjects();
     return true;
   },
 }));

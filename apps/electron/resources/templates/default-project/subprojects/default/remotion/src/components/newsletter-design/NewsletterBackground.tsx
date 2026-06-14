@@ -1,8 +1,19 @@
 import React from "react";
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import {
+  hasBackgroundStyleOverride,
+  toBackgroundOverrideCss,
+  type BackgroundStyleLike,
+} from "../../lib/background-style-override";
 import { COLORS, H, W } from "./theme";
 
-export const NewsletterBackground: React.FC = () => {
+export const NewsletterBackground: React.FC<{
+  style?: BackgroundStyleLike;
+}> = ({ style }) => {
+  if (hasBackgroundStyleOverride(style)) {
+    return <AbsoluteFill style={toBackgroundOverrideCss(style)} />;
+  }
+
   const frame = useCurrentFrame();
 
   const drift1 = interpolate(frame, [0, 125], [0, 48], {

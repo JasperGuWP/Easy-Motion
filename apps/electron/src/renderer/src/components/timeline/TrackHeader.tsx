@@ -384,8 +384,8 @@ export function TrackHeader({
         data-top-level={depth === 0 ? "true" : "false"}
         className={cn(
           "group/track relative box-border flex min-w-0 shrink-0 items-center gap-0.5 overflow-hidden bg-background pr-1",
-          "before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-0.5 before:scale-y-0 before:bg-foreground before:transition-transform before:duration-150 before:content-['']",
-          selected && "bg-muted/45 before:scale-y-100",
+          "before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-0.5 before:scale-y-0 before:bg-primary before:transition-transform before:duration-150 before:content-['']",
+          selected && "bg-primary/10 before:scale-y-100",
           isDragging && "z-20 opacity-60",
           !effectiveVisible && "opacity-50",
           effectiveLocked && !selected && "bg-muted/25",

@@ -1,5 +1,7 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import { debounce } from "@/lib/debounce";
+import { eventBus } from "@/lib/eventBus";
 import { modKeyLabel } from "@/lib/keyboard";
 import { PR_SHORTCUTS } from "@/lib/premiereShortcuts";
 import {
@@ -73,6 +75,8 @@ interface TimelineState {
   hasUnsavedChanges: boolean;
   history: TimelineHistory;
   previewReloadNonce: number;
+  /** 重新生成 Remotion 代码后整页重载 iframe */
+  previewFullReloadNonce: number;
   /** 手写 Remotion：推送 timeline 到预览 iframe（独奏/可见性） */
   previewTimelineNonce: number;
   remotionDrift: {
@@ -85,7 +89,14 @@ interface TimelineState {
   isSyncingRemotion: boolean;
   lastRemotionSync: RemotionSyncStats | null;
 
-  loadTimeline: () => Promise<void>;
+  loadTimeline: (options?: { skipAutoSync?: boolean; subprojectPath?: string }) => Promise<void>;
+  replaceTimelineFromAgent: (timeline: Timeline) => void;
+  applyAgentTimelineDiff: (options: {
+    subprojectPath: string;
+    timeline?: Timeline | null;
+    previewReload?: boolean;
+  }) => Promise<void>;
+  subscribeToEventBus: () => void;
   applySampleTimeline: () => Promise<void>;
   checkRemotionDrift: (options?: { autoSync?: boolean }) => Promise<void>;
   syncFromRemotion: () => Promise<boolean>;
@@ -116,7 +127,10 @@ interface TimelineState {
   toggleTrackSolo: (trackId: string, exclusive?: boolean) => void;
   syncPreviewForTrackFilters: () => Promise<void>;
   /** 手写 Remotion：将时间线片段头尾等变更推送到预览 iframe */
-  syncPreviewAfterTimelineEdit: () => Promise<boolean>;
+  syncPreviewAfterTimelineEdit: (options?: {
+    force?: boolean;
+    subprojectPath?: string;
+  }) => Promise<boolean>;
   renameTrack: (trackId: string, name: string) => void;
 
   addClip: (trackId: string, clip: Clip) => void;
@@ -156,6 +170,7 @@ const debouncedGenerate = debounce(() => {
 
 let historyMergeTimer: ReturnType<typeof setTimeout> | null = null;
 let historyMerging = false;
+let eventBusSubscribed = false;
 
 function clearHistoryMerge() {
   if (historyMergeTimer) {
@@ -288,6 +303,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
     hasUnsavedChanges: false,
     history: createHistory(),
     previewReloadNonce: 0,
+    previewFullReloadNonce: 0,
     previewTimelineNonce: 0,
     remotionDrift: null,
     isSyncingRemotion: false,
@@ -340,7 +356,6 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
 
       // 点子轨道行：直接选中该轨道上的片段
       if (clicked && clicked.id !== layerTrack.id && clicked.clips.length > 0) {
-        useUiStore.getState().setRightTab("properties");
         set({
           selectedTrackId: layerTrack.id,
           selectedClipId: clicked.clips[0]!.id,
@@ -353,7 +368,6 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
         collectLayerElements(layerTrack),
       );
 
-      useUiStore.getState().setRightTab("properties");
       set({
         selectedTrackId: layerTrack.id,
         selectedClipId: defaultElement?.clip.id ?? clicked?.clips[0]?.id ?? null,
@@ -375,7 +389,6 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
         selectedTrackId: located?.layerTrack.id ?? null,
         selectedMarkerId: null,
       });
-      useUiStore.getState().setRightTab("properties");
     },
 
     selectMarker: (markerId) => {
@@ -474,11 +487,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
       }
 
       if (res.data?.previewReload) {
-        set((s) => ({ previewReloadNonce: s.previewReloadNonce + 1 }));
+        set((s) => ({ previewFullReloadNonce: s.previewFullReloadNonce + 1 }));
       } else if (api.preview?.getState) {
         const previewState = await api.preview.getState();
         if (previewState.success && previewState.data?.status === "running") {
-          set((s) => ({ previewReloadNonce: s.previewReloadNonce + 1 }));
+          set((s) => ({ previewFullReloadNonce: s.previewFullReloadNonce + 1 }));
         }
       }
 
@@ -489,7 +502,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
       debouncedGenerate();
     },
 
-    loadTimeline: async () => {
+    loadTimeline: async (options) => {
       const api = getEasyMotion();
       if (!api?.timeline.load) {
         set({ error: "时间线 API 不可用（请在 Electron 中运行）" });
@@ -497,7 +510,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
       }
 
       set({ isLoading: true, error: null });
-      const res = await api.timeline.load();
+      const res = await api.timeline.load(
+        options?.subprojectPath ? { subprojectPath: options.subprojectPath } : undefined
+      );
 
       if (!res.success || !res.data) {
         set({
@@ -511,18 +526,110 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
       useUiStore.getState().setTimelineScrollX(0);
 
       const { timeline: loaded, repaired } = repairTimelineForEditing(res.data);
+      const prev = get();
+
+      const selection = options?.skipAutoSync
+        ? syncSelectionAfterTimelineChange(
+            loaded,
+            prev.selectedClipId,
+            prev.selectedTrackId,
+            prev.selectedMarkerId,
+          )
+        : {
+            selectedClipId: null,
+            selectedTrackId: null,
+            selectedMarkerId: null,
+          };
 
       set({
         timeline: loaded,
-        currentFrame: 0,
-        selectedClipId: null,
-        selectedTrackId: null,
-        selectedMarkerId: null,
+        currentFrame: options?.skipAutoSync ? prev.currentFrame : 0,
+        ...selection,
         hasUnsavedChanges: repaired,
         history: createHistory(),
       });
-      await get().checkRemotionDrift({ autoSync: true });
+      if (!options?.skipAutoSync) {
+        await get().checkRemotionDrift({ autoSync: true });
+      }
       set({ isLoading: false });
+    },
+
+    replaceTimelineFromAgent: (incoming) => {
+      clearHistoryMerge();
+      useUiStore.getState().setTimelineScrollX(0);
+
+      const { timeline: loaded, repaired } = repairTimelineForEditing(incoming);
+      const prev = get();
+      const selection = syncSelectionAfterTimelineChange(
+        loaded,
+        prev.selectedClipId,
+        prev.selectedTrackId,
+        prev.selectedMarkerId,
+      );
+      const maxFrame = Math.max(0, loaded.durationInFrames - 1);
+
+      set({
+        timeline: loaded,
+        currentFrame: Math.min(prev.currentFrame, maxFrame),
+        ...selection,
+        hasUnsavedChanges: repaired,
+        history: createHistory(),
+        error: null,
+        isLoading: false,
+      });
+    },
+
+    applyAgentTimelineDiff: async ({
+      subprojectPath,
+      timeline,
+      previewReload,
+    }) => {
+      if (timeline) {
+        get().replaceTimelineFromAgent(timeline);
+      } else {
+        await get().loadTimeline({
+          skipAutoSync: true,
+          subprojectPath,
+        });
+      }
+
+      const loadError = get().error;
+      if (loadError) {
+        toast.error("时间线刷新失败", { description: loadError });
+        return;
+      }
+
+      await get().checkRemotionDrift({ autoSync: false });
+      await get().syncPreviewAfterTimelineEdit({
+        force: true,
+        subprojectPath,
+      });
+
+      if (previewReload) {
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+        set((state) => ({
+          previewFullReloadNonce: state.previewFullReloadNonce + 1,
+        }));
+      }
+
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, previewReload ? 200 : 0),
+      );
+      set((state) => ({
+        previewTimelineNonce: state.previewTimelineNonce + 1,
+      }));
+    },
+
+    subscribeToEventBus: () => {
+      if (eventBusSubscribed) return;
+      eventBusSubscribed = true;
+      eventBus.on("conversation.diffReady", (payload) => {
+        void get().applyAgentTimelineDiff({
+          subprojectPath: payload.subprojectPath,
+          timeline: payload.timeline,
+          previewReload: payload.previewReload,
+        });
+      });
     },
 
     checkRemotionDrift: async (options) => {
@@ -711,13 +818,16 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
       void get().syncPreviewForTrackFilters();
     },
 
-    syncPreviewAfterTimelineEdit: async () => {
+    syncPreviewAfterTimelineEdit: async (options = {}) => {
       const { timeline, remotionDrift } = get();
       const api = getEasyMotion();
       if (!timeline || !api?.timeline?.syncPreviewManifest) return false;
-      if (!remotionDrift?.hasCustomRemotionCode) return false;
+      if (!options.force && !remotionDrift?.hasCustomRemotionCode) return false;
 
-      const res = await api.timeline.syncPreviewManifest({ timeline });
+      const res = await api.timeline.syncPreviewManifest({
+        timeline,
+        subprojectPath: options.subprojectPath,
+      });
       if (!res.success) return false;
 
       if (res.data?.timeline) {
@@ -727,7 +837,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
         });
       }
       if (res.data?.previewReload) {
-        set((s) => ({ previewReloadNonce: s.previewReloadNonce + 1 }));
+        set((s) => ({ previewFullReloadNonce: s.previewFullReloadNonce + 1 }));
       } else if (res.data?.timelinePush !== false) {
         set((s) => ({ previewTimelineNonce: s.previewTimelineNonce + 1 }));
       }
@@ -783,7 +893,6 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
           selectedClipId: result.clipId,
           selectedTrackId: result.trackId,
         });
-        useUiStore.getState().setRightTab("properties");
       } catch (err) {
         const message =
           err instanceof TimelineValidationError || err instanceof Error

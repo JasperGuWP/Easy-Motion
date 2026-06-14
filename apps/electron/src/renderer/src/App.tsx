@@ -10,6 +10,8 @@ export default function App() {
   useTimelineShortcuts();
 
   useEffect(() => {
+    useTimelineStore.getState().subscribeToEventBus();
+
     void (async () => {
       await useProjectStore.getState().refreshCurrent();
       if (useProjectStore.getState().current) {

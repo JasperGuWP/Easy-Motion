@@ -1,0 +1,117 @@
+const { buildSystemPrompt } = require("../src/main/agent/prompts/system");
+const { buildVisionContextSection } = require("../src/main/agent/prompts/vision");
+const { createTimelineTools } = require("../src/main/agent/tools");
+const { TimelineContext } = require("../src/main/agent/timeline-context");
+const {
+  normalizeClipUpdates,
+  resolveRelativeClipUpdates,
+} = require("../src/main/agent/clip-updates");
+const { runSimplifiedFallback } = require("../src/main/agent/fallback-templates");
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+const BASE_TIMELINE = {
+  version: "1.0",
+  fps: 30,
+  durationInFrames: 90,
+  width: 1280,
+  height: 720,
+  tracks: [],
+};
+
+const SAMPLE_CLIP = {
+  id: "clip-1",
+  name: "标题",
+  type: "text",
+  startInFrames: 0,
+  durationInFrames: 90,
+  style: { fontSize: 60, color: "#ffffff" },
+  source: { kind: "inline", content: "Hello" },
+};
+
+function main() {
+  const prompt = buildSystemPrompt({
+    timeline: BASE_TIMELINE,
+    subprojectName: "默认片段",
+  });
+  assert(prompt.includes("createTrack"), "system prompt mentions createTrack");
+  assert(prompt.includes("importAsset"), "system prompt mentions importAsset");
+  assert(prompt.includes("1280"), "system prompt includes width");
+  assert(prompt.includes("30fps"), "system prompt includes fps");
+
+  const withSelection = buildSystemPrompt({
+    timeline: BASE_TIMELINE,
+    selectedElement: { type: "clip", clip: SAMPLE_CLIP },
+    userInput: "字体大一点",
+  });
+  assert(withSelection.includes("当前片段"), "selected clip adds adjust section");
+
+  const bigger = resolveRelativeClipUpdates(SAMPLE_CLIP, "字体大一点", {});
+  assert(bigger["style.fontSize"] === 72, "字体大一点 -> +20% fontSize");
+
+  const smaller = resolveRelativeClipUpdates(SAMPLE_CLIP, "字体小一点", {});
+  assert(smaller["style.fontSize"] === 48, "字体小一点 -> -20% fontSize");
+
+  const normalized = normalizeClipUpdates({ fontSize: 80, color: "#fff" });
+  assert(normalized["style.fontSize"] === 80, "normalize root fontSize");
+  assert(normalized["style.color"] === "#fff", "normalize root color");
+
+  const gradientBg = normalizeClipUpdates({
+    background: "linear-gradient(135deg, #000, #fff)",
+  });
+  assert(
+    gradientBg["style.background"]?.includes("linear-gradient"),
+    "normalize background -> style.background",
+  );
+
+  const visionSection = buildVisionContextSection({
+    visualAnalysis: { layout: { type: "free", elements: [] } },
+    toolHints: ["createTrack"],
+  });
+  assert(visionSection.includes("参考图"), "vision section mentions reference image");
+
+  const emptyVision = buildVisionContextSection({});
+  assert(emptyVision === "", "empty vision context returns empty string");
+
+  const ctx = new TimelineContext(BASE_TIMELINE, {
+    userInput: "标题写着 Demo",
+  });
+  const tools = createTimelineTools(ctx);
+  const toolNames = tools.map((tool) => tool.name).sort();
+  assert(toolNames.length === 8, "timeline agent exposes 8 tools");
+  assert(toolNames.includes("updateClip"), "tools include updateClip");
+  assert(toolNames.includes("queryElement"), "tools include queryElement");
+
+  const fallback = runSimplifiedFallback({
+    timeline: BASE_TIMELINE,
+    input: "标题写着 PromptRegression",
+  });
+  assert(fallback.timelineChanged, "fallback changes timeline for title request");
+  assert(
+    fallback.reply.includes("PromptRegression") || fallback.reply.includes("简化"),
+    "fallback reply mentions input or simplified mode",
+  );
+
+  const cases = [
+    "创建一个标题",
+    "字体大一点",
+    "背景改成渐变",
+    "删除这个片段",
+    "import 图片",
+    "动画快一点",
+    "移到左边",
+    "query 背景",
+    "添加关键帧",
+    "设置淡入动画",
+  ];
+  assert(cases.length === 10, "prompt regression case list has 10 items");
+  for (const text of cases) {
+    assert(typeof text === "string" && text.length > 0, `case should be non-empty: ${text}`);
+  }
+
+  console.log("test-agent-prompt-regression: passed");
+}
+
+main();

@@ -326,7 +326,7 @@ export function moveClip(
           ? t.clips.filter((c) => c.id !== clipId)
           : t.clips.map((c) =>
               c.id === clipId
-                ? { ...c, startInFrames: start, lastModifiedBy: "user" as const }
+                ? { ...c, startInFrames: start, lastModifiedBy: "user" as const, lastModifiedAt: Date.now() }
                 : c,
             );
         return { ...t, clips };
@@ -339,6 +339,7 @@ export function moveClip(
           ...clip,
           startInFrames: start,
           lastModifiedBy: "user",
+          lastModifiedAt: Date.now(),
         };
         return { ...t, clips: [...t.clips, moved] };
       }).tracks[0]!;
@@ -400,6 +401,7 @@ export function resizeClip(
               startInFrames: start,
               durationInFrames: duration,
               lastModifiedBy: "user" as const,
+              lastModifiedAt: Date.now(),
             }
           : c,
       ),
@@ -431,6 +433,7 @@ export function splitClip(
     ...clip,
     durationInFrames: firstDuration,
     lastModifiedBy: "user",
+    lastModifiedAt: Date.now(),
   };
   const second: Clip = {
     ...structuredClone(clip),
@@ -439,6 +442,7 @@ export function splitClip(
     startInFrames: splitFrame,
     durationInFrames: secondDuration,
     lastModifiedBy: "user",
+    lastModifiedAt: Date.now(),
   };
 
   const tracks = timeline.tracks.map((t) =>
@@ -475,6 +479,7 @@ function mergeClip(base: Clip, patch: ClipPatch): Clip {
   const next: Clip = {
     ...base,
     lastModifiedBy: "user",
+    lastModifiedAt: Date.now(),
   };
 
   if (patch.name !== undefined) {

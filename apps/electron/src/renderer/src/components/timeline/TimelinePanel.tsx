@@ -78,7 +78,7 @@ export function TimelinePanel() {
           <p>
             {remotionDrift?.tracksEmpty
               ? "时间线轨道为空，但 Remotion 项目有内容。"
-              : "Remotion 源码已变更，自动同步失败。"}
+              : "Remotion 源码已变更，自动同步未成功。"}
             {" "}
             可手动重试「从 Remotion 读取」。
           </p>

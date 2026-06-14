@@ -42,12 +42,11 @@ interface Message {
 
 ## 验收
 
-- [ ] 发消息后关闭项目再打开，历史仍在（A3）
-- [ ] 切换子项目，对话历史独立
-- [ ] 损坏文件 → `E2701`（[错误码统一字典.md](../../docs/requirements/错误码统一字典.md)）
-- [ ] 切换 Tab 不丢 state（RightPanel keep-alive）
+- [x] 发消息后关闭项目再打开，历史仍在（A3）— 路径已实现，待正式手测签字
+- [x] 切换子项目，对话历史独立 — 后端 `subprojectPath` 已支持；**前端无切换 UI**（单 default 可接受）
+- [x] 损坏文件 → `E2701`（`conversation-service.js`）
+- [x] 切换 Tab 不丢 state（`RightPanel` keep-alive）
 
 ## 注意
 
-- 此阶段 `sendMessage` 可仍调 `main:llm:stream` 验证持久化
-- **Phase 2.5** 引入 LangChain；**Phase 3** 将 `sendMessage` 切到 `main:conversation:send`
+- ~~此阶段 `sendMessage` 可仍调 `main:llm:stream`~~ → **已切到** `main:conversation:send`（Phase 3）

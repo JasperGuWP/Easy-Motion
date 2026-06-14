@@ -3,7 +3,8 @@
 **工期**：3 天  
 **依赖**：Phase 3  
 **PR**：`feat/m5-langchain-agent-modify`  
-**权威依据**：[LLM-Agent设计.md](../../docs/requirements/LLM-Agent设计.md) §参数调整 Prompt、[开发里程碑与路线图.md](../../docs/requirements/开发里程碑与路线图.md) §对话调整
+**状态**：✅ 已实现（2026-06-14）  
+**权威依据**：[LLM-Agent设计.md](../../docs/requirements/LLM-Agent设计.md) §参数调整 Prompt
 
 ## 目标
 
@@ -13,39 +14,37 @@
 
 ### LangChain / Prompt
 
-- [ ] 启用 `agent/prompts/adjust.js` — 复制 LLM-Agent设计 §**参数调整 Prompt**
-- [ ] Agent 上下文注入选中 `clipJSON`（`AgentTask.context.selectedElement`）
-- [ ] 完善 `updateClip`、`queryElement` Tool（Phase 3 首版可仅部分实现）
+- [x] `agent/prompts/adjust.js` — 参数调整 Prompt
+- [x] Agent 上下文注入选中 `clipJSON`（`buildAdjustPromptSection`）
+- [x] `updateClip`、`queryElement` Tool 完整可用
 
-### 相对调整规则（文档规定）
+### 相对调整规则
 
-| 用户说法 | Tool 参数策略 |
-|----------|---------------|
-| 大一点/小一点 | 数值 ±20% |
-| 快一点/慢一点 | `durationInFrames` 减半/加倍 |
-| 移到左/右 | position 偏移 |
-| 颜色改成 xxx | 映射 hex |
+- [x] 大一点/小一点 → `clip-updates.js` ±20%
+- [x] 快/慢 → `durationInFrames` 减半/加倍
+- [x] 左/右/上/下 → position 偏移
+- [x] 颜色 → hex / `style.background` 等
 
-### 冲突检测（路线图 §对话调整）
+### 冲突检测
 
-- [ ] `lastModifiedBy === "user"` 且 5 分钟内 → UI 确认覆盖
-- [ ] 用户取消 → Agent 不写入（LangChain 执行前 abort 或 Tool 层拒绝）
+- [x] `lastModifiedBy === "user"` + 5 分钟内 → `window.confirm`
+- [x] 用户取消 → Tool 层 `E2010` / 不写入
 
-### UI（组件库清单）
+### UI
 
-- [ ] `MessageItem` — user / assistant / **system** 样式
-- [ ] `ActionButtons` — 「撤销此次 AI 修改」
-- [ ] Assistant 消息展示修改摘要
+- [x] `MessageItem` — user / assistant / system
+- [x] `ActionButtons` — 「撤销此次 AI 修改」
+- [x] Assistant 消息 `codeDiff.summary`
 
-### 跨 Store（状态管理）
+### 跨 Store
 
-- [ ] Agent 完成后 `eventBus.emit('conversation.diffReady', { subprojectId, diff })`
-- [ ] `timelineStore` 订阅并应用 diff，触发 Generator
+- [x] `eventBus.emit('conversation.diffReady', …)`
+- [x] timeline 更新 + `syncPreviewAfterTimelineEdit`（经 `conversation.diffReady` → `timelineStore`）
 
 ## 验收（A2）
 
-选中文字 clip →「字体大一点」→ LangChain 调 `updateClip` → 预览更新。
+- [x] 选中 clip →「字体大一点」→ `updateClip` → 预览 — 路径已通，⬜ 待 E2E 签字
 
-## Prompt 回归
+## 补充（会话中已修）
 
-10 条用例见 [10-验收与测试.md](./10-验收与测试.md)。
+- [x] `NewsletterBackground` 等 animation 背景组件支持 `clip.style` 覆盖（否则 AI 改背景不生效）

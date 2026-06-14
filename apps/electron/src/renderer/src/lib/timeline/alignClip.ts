@@ -23,7 +23,7 @@ export function alignClipHorizontalCenter(timeline: Timeline, clipId: string): T
       ...track,
       clips: track.clips.map((c) =>
         c.id === clipId
-          ? { ...c, transform, lastModifiedBy: "user" as const }
+          ? { ...c, transform, lastModifiedBy: "user" as const, lastModifiedAt: Date.now() }
           : c,
       ),
     };

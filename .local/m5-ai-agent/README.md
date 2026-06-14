@@ -1,20 +1,26 @@
 # M5 — AI 对话面板 + Agent 集成
 
 > 执行计划对齐 [`docs/requirements/`](../../docs/requirements/)。**Agent 框架：LangChain.js**（技术规格、LLM-Agent设计、依赖清单）。  
-> 基线日期：2026-06-13 | 预估工期：3 周
+> 基线日期：2026-06-13 | 文档同步：2026-06-14 | 预估工期：3 周
 
 ## 当前进度
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| LLM 流式代理 | ✅ Phase 0 | `main:llm:*` + 聊天 UI |
+| LLM 流式代理 | ✅ Phase 0 | `main:llm:*` + 聊天 UI（调试保留） |
 | 设置 / Key 安全 | ✅ Phase 1 | `settings.json` + `secrets.json` |
 | 对话持久化 | ✅ Phase 2 | `conversation.json` + `conversationStore` |
-| LangChain 接入 | ⬜ Phase 2.5 | `langchain` + `llm-factory` |
-| Agent + 8 Tools | ⬜ Phase 3 | LangChain AgentExecutor |
-| 多模态 | ⬜ Phase 6 | 视觉解析 Prompt |
+| LangChain 接入 | ✅ Phase 2.5 | `langchain` + `llm-factory` + `test-llm-factory.js` |
+| Agent + 8 Tools | ✅ Phase 3 | `createAgent` + `conversation:send`（A1 路径已通） |
+| 对话调整 | ✅ Phase 4 | `updateClip` / 冲突 / 撤销（A2 路径已通） |
+| 健壮性与安全 | ✅ Phase 5 | 超时/重试/降级/扫描/E2700 |
+| 多模态与 UI | ✅ Phase 6 | 视觉链 + 缩略图/排序；折叠 ⏭️ 不做 |
 
-**整体约 40–45%**
+**M5 已完成**（代码 + `pnpm test:m5` + A1–A6 手测）
+
+### M5.1 候选
+
+见 [11-剩余工作与验收.md](./11-剩余工作与验收.md)（子项目切换、多步 Tool 回滚等）。
 
 ## 阅读顺序
 
@@ -25,6 +31,7 @@
 | 3. **LangChain** | [03b-Phase2.5-LangChain依赖与模型接入.md](./03b-Phase2.5-LangChain依赖与模型接入.md) |
 | 4. Agent 闭环 | [04](./04-Phase3-Agent闭环.md) → [07](./07-Phase6-多模态与UI.md) |
 | 5. 工程与验收 | [08](./08-文件清单与PR拆分.md) · [09](./09-排期分工与风险.md) · [10](./10-验收与测试.md) |
+| 6. **收尾清单** | [11-剩余工作与验收.md](./11-剩余工作与验收.md) |
 
 ## 权威规范（必读）
 
@@ -43,4 +50,12 @@
 ## 与 `docs/` 的关系
 
 - `docs/requirements/`：**权威规范**（含 LangChain 选型）
-- `.local/m5-ai-agent/`：**执行排期**；若与 docs 冲突，以 docs 为准并更新本计划
+- `.local/m5-ai-agent/`：**执行排期与进度快照**；若与 docs 冲突，以 docs 为准并更新本计划
+
+## 测试入口
+
+```bash
+cd apps/electron && pnpm test:m5
+```
+
+需 API Key 的手动冒烟：`node scripts/test-agent-live.js`

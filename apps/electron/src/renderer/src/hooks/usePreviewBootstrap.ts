@@ -23,7 +23,6 @@ export function usePreviewBootstrap() {
   const timelineLoading = useTimelineStore((s) => s.isLoading);
   const timeline = useTimelineStore((s) => s.timeline);
   const isGenerating = useTimelineStore((s) => s.isGenerating);
-  const remotionDrift = useTimelineStore((s) => s.remotionDrift);
   const runGenerate = useTimelineStore((s) => s.runGenerate);
   const checkRemotionDrift = useTimelineStore((s) => s.checkRemotionDrift);
 
@@ -79,6 +78,7 @@ export function usePreviewBootstrap() {
         const state = await api.preview.getState();
         if (state.success && state.data?.status === "running" && state.data.url) {
           setPreviewUrl(state.data.url);
+          await checkRemotionDrift({ autoSync: true });
           return true;
         }
       }
@@ -101,11 +101,11 @@ export function usePreviewBootstrap() {
             remotionFingerprint: fingerprint,
             remotionSyncedAt: Date.now(),
           },
-          remotionDrift: null,
         });
-      } else {
-        await checkRemotionDrift({ autoSync: false });
       }
+
+      // 预览依赖就绪后重试漂移同步（打开项目时可能因 Remotion 未安装而失败）
+      await checkRemotionDrift({ autoSync: true });
 
       return true;
     } catch (err) {
@@ -118,8 +118,16 @@ export function usePreviewBootstrap() {
   }, [checkRemotionDrift]);
 
   const bootstrapPreview = useCallback(async () => {
-    // 仅在手写 Remotion 已排除时静默生成；漂移检测失败则跳过生成，避免覆盖自定义动画
-    if (remotionDrift && !remotionDrift.hasCustomRemotionCode) {
+    const drift = useTimelineStore.getState().remotionDrift;
+
+    // Remotion 有待同步内容时先启动预览，再由 startPreview 自动读取，避免用时间线覆盖源码
+    if (drift?.suggestSync) {
+      await startPreview();
+      return;
+    }
+
+    // 仅在手写 Remotion 已排除时静默生成
+    if (drift && !drift.hasCustomRemotionCode) {
       const generated = await runGenerate({ manual: false });
       if (!generated) {
         setError("生成预览代码失败，请检查时间线后重试");
@@ -127,7 +135,7 @@ export function usePreviewBootstrap() {
       }
     }
     await startPreview();
-  }, [remotionDrift, runGenerate, startPreview]);
+  }, [runGenerate, startPreview]);
 
   useEffect(() => {
     if (!currentProject?.path) {

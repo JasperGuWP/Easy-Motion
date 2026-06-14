@@ -323,6 +323,7 @@ function isLlmConfigured() {
 module.exports = {
   getLlmConfig,
   resolveLlmConfig,
+  assertLlmConfig,
   validateLlmApiKey,
   isLlmConfigured,
   startStream,

@@ -5,6 +5,7 @@ const { generateRoot } = require("./generate-root");
 const { generateMainSequence } = require("./generate-main-sequence");
 const { writeTimelineManifest } = require("../importer/timeline-manifest");
 const { ensureDir } = require("../services/file-service");
+const { assertTsxSecurity } = require("./security-scan");
 
 function writeFile(filePath, content) {
   ensureDir(path.dirname(filePath));
@@ -21,6 +22,9 @@ function generateRemotionCode({ remotionSrcDir, timeline }) {
 
   const rootCode = generateRoot(timeline);
   const mainSequenceCode = generateMainSequence(timeline);
+
+  assertTsxSecurity(rootCode);
+  assertTsxSecurity(mainSequenceCode);
 
   const previewConfigPath = path.join(remotionSrcDir, "preview-config.json");
   const manifestPath = path.join(remotionSrcDir, "easymotion-timeline.manifest.json");

@@ -3,6 +3,7 @@ const path = require("node:path");
 const { readJsonFile, atomicWriteJson } = require("./file-service");
 
 const CONVERSATION_VERSION = "1.0";
+const AGENT_UNDO_SNAPSHOT_FILE = "agent-undo-snapshot.json";
 
 function getSubprojectDir(projectRoot, subprojectRelativePath = "subprojects/default") {
   return path.join(projectRoot, subprojectRelativePath);
@@ -24,6 +25,13 @@ function getSubprojectJsonPath(projectRoot, subprojectRelativePath) {
   return path.join(
     getSubprojectDir(projectRoot, subprojectRelativePath),
     "subproject.json"
+  );
+}
+
+function getAgentUndoSnapshotPath(projectRoot, subprojectRelativePath) {
+  return path.join(
+    getSubprojectDir(projectRoot, subprojectRelativePath),
+    AGENT_UNDO_SNAPSHOT_FILE
   );
 }
 
@@ -70,6 +78,9 @@ function normalizeConversation(raw) {
     ...(typeof raw.lastAgentTaskId === "string"
       ? { lastAgentTaskId: raw.lastAgentTaskId }
       : {}),
+    ...(typeof raw.pendingAgentUndo?.messageId === "string"
+      ? { pendingAgentUndo: { messageId: raw.pendingAgentUndo.messageId } }
+      : {}),
   };
 }
 
@@ -105,12 +116,97 @@ function loadConversation(projectRoot, subprojectRelativePath = "subprojects/def
   return { ...EMPTY_CONVERSATION };
 }
 
+function loadAgentUndoSnapshot(projectRoot, subprojectRelativePath = "subprojects/default") {
+  const snapshotPath = getAgentUndoSnapshotPath(projectRoot, subprojectRelativePath);
+  if (!fs.existsSync(snapshotPath)) return null;
+
+  try {
+    const raw = readJsonFile(snapshotPath);
+    if (typeof raw?.messageId !== "string" || !raw?.timeline) {
+      return null;
+    }
+    return {
+      messageId: raw.messageId,
+      timeline: raw.timeline,
+      savedAt: typeof raw.savedAt === "number" ? raw.savedAt : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function saveAgentUndoSnapshot(
+  projectRoot,
+  subprojectRelativePath = "subprojects/default",
+  { messageId, timeline }
+) {
+  if (!messageId || !timeline) {
+    throw new Error("E2002: 无效的撤销快照");
+  }
+
+  const snapshotPath = getAgentUndoSnapshotPath(projectRoot, subprojectRelativePath);
+  await atomicWriteJson(snapshotPath, {
+    messageId,
+    savedAt: Date.now(),
+    timeline,
+  });
+
+  const conversation = loadConversation(projectRoot, subprojectRelativePath);
+  conversation.pendingAgentUndo = { messageId };
+  await saveConversation(projectRoot, conversation, subprojectRelativePath);
+
+  return { saved: true, messageId };
+}
+
+async function clearAgentUndoSnapshot(
+  projectRoot,
+  subprojectRelativePath = "subprojects/default"
+) {
+  const snapshotPath = getAgentUndoSnapshotPath(projectRoot, subprojectRelativePath);
+  if (fs.existsSync(snapshotPath)) {
+    fs.unlinkSync(snapshotPath);
+  }
+
+  const conversation = loadConversation(projectRoot, subprojectRelativePath);
+  if (conversation.pendingAgentUndo) {
+    delete conversation.pendingAgentUndo;
+    await saveConversation(projectRoot, conversation, subprojectRelativePath);
+  }
+
+  return { cleared: true };
+}
+
+function resolvePendingAgentUndo(projectRoot, subprojectRelativePath) {
+  const conversation = loadConversation(projectRoot, subprojectRelativePath);
+  const snapshot = loadAgentUndoSnapshot(projectRoot, subprojectRelativePath);
+  if (!snapshot) return null;
+
+  const pendingId = conversation.pendingAgentUndo?.messageId;
+  if (!pendingId || pendingId !== snapshot.messageId) {
+    return null;
+  }
+
+  const messageExists = conversation.messages.some((m) => m.id === snapshot.messageId);
+  if (!messageExists) {
+    return null;
+  }
+
+  return snapshot;
+}
+
 async function saveConversation(
   projectRoot,
   conversation,
   subprojectRelativePath = "subprojects/default"
 ) {
-  const normalized = normalizeConversation(conversation);
+  const existing = loadConversation(projectRoot, subprojectRelativePath);
+  const normalized = normalizeConversation({
+    ...conversation,
+    pendingAgentUndo:
+      conversation.pendingAgentUndo !== undefined
+        ? conversation.pendingAgentUndo
+        : existing.pendingAgentUndo,
+  });
   const conversationPath = getConversationFilePath(projectRoot, subprojectRelativePath);
   await atomicWriteJson(conversationPath, normalized);
 
@@ -121,6 +217,9 @@ async function saveConversation(
       messages: normalized.messages,
       ...(normalized.lastAgentTaskId
         ? { lastAgentTaskId: normalized.lastAgentTaskId }
+        : {}),
+      ...(normalized.pendingAgentUndo
+        ? { pendingAgentUndo: normalized.pendingAgentUndo }
         : {}),
     };
     await atomicWriteJson(subprojectPath, subproject);
@@ -133,6 +232,7 @@ async function clearConversation(
   projectRoot,
   subprojectRelativePath = "subprojects/default"
 ) {
+  await clearAgentUndoSnapshot(projectRoot, subprojectRelativePath);
   return saveConversation(projectRoot, { ...EMPTY_CONVERSATION }, subprojectRelativePath);
 }
 
@@ -157,4 +257,8 @@ module.exports = {
   clearConversation,
   resolveSubprojectPath,
   normalizeConversation,
+  loadAgentUndoSnapshot,
+  saveAgentUndoSnapshot,
+  clearAgentUndoSnapshot,
+  resolvePendingAgentUndo,
 };

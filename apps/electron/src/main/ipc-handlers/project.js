@@ -40,6 +40,11 @@ function registerProjectHandlers() {
   );
 
   ipcMain.handle(
+    "main:project:listLocal",
+    wrap(() => projectService.listLocalProjects())
+  );
+
+  ipcMain.handle(
     "main:project:delete",
     wrap((payload) => projectService.deleteProject(payload.path, payload.options))
   );

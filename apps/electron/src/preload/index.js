@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("easyMotion", {
     open: (path) => invoke("main:project:open", { path }),
     save: () => invoke("main:project:save"),
     listRecent: () => invoke("main:project:listRecent"),
+    listLocal: () => invoke("main:project:listLocal"),
     delete: (path, options) => invoke("main:project:delete", { path, options }),
     getCurrent: () => invoke("main:project:getCurrent"),
     pickParentDirectory: () => invoke("main:project:pickParentDirectory"),
@@ -60,5 +61,31 @@ contextBridge.exposeInMainWorld("easyMotion", {
     load: (payload) => invoke("main:conversation:load", payload),
     save: (payload) => invoke("main:conversation:save", payload),
     clear: (payload) => invoke("main:conversation:clear", payload),
+    saveAgentUndo: (payload) => invoke("main:conversation:saveAgentUndo", payload),
+    clearAgentUndo: (payload) => invoke("main:conversation:clearAgentUndo", payload),
+    pickAiRefs: (payload) => invoke("main:conversation:pickAiRefs", payload),
+    readAiRefPreview: (payload) => invoke("main:conversation:readAiRefPreview", payload),
+    send: (payload) => invoke("main:conversation:send", payload),
+    cancel: (payload) => invoke("main:conversation:cancel", payload),
+    onChunk: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on("renderer:conversation:chunk", listener);
+      return () => ipcRenderer.removeListener("renderer:conversation:chunk", listener);
+    },
+    onComplete: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on("renderer:conversation:complete", listener);
+      return () => ipcRenderer.removeListener("renderer:conversation:complete", listener);
+    },
+    onError: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on("renderer:conversation:error", listener);
+      return () => ipcRenderer.removeListener("renderer:conversation:error", listener);
+    },
+    onStatus: (callback) => {
+      const listener = (_event, data) => callback(data);
+      ipcRenderer.on("renderer:conversation:status", listener);
+      return () => ipcRenderer.removeListener("renderer:conversation:status", listener);
+    },
   },
 });

@@ -26,25 +26,27 @@
 
 ### 主进程
 
-- [ ] `agent/llm-factory.js` — 从 `settings-service` + `secrets-service` 构建 `ChatOpenAI` / `ChatAnthropic`
-  - `provider: "openai" | "anthropic"`（与 [配置管理参考.md](../../docs/requirements/配置管理参考.md) 一致，禁止 `claude` 别名）
+- [x] `agent/llm-factory.js` — 从 `settings-service` + `secrets-service` 构建 `ChatOpenAI` / `ChatAnthropic`
+  - `provider: "openai" | "anthropic"`
   - 支持自定义 `baseUrl`（MiniMax Anthropic 兼容）
-  - `.env` 仅作开发后备（与 Phase 1 一致）
-- [ ] `agent/llm-factory.test.js` 或脚本 — 主进程冒烟：单轮 `invoke("你好")` 返回非空
-- [ ] `llm-service.js` 角色调整：
-  - **保留** `main:llm:stream` 直通路径（调试用 / 纯聊天）
-  - Phase 3 起用户消息改走 `conversation:send` → LangChain Agent；`llm-service` 可被 `llm-factory` 复用配置解析逻辑
+  - `.env` 仅作开发后备
+- [x] `scripts/test-llm-factory.js` — 主进程冒烟
+- [x] `llm-service.js` 保留 `main:llm:stream`；用户消息走 `conversation:send`
 
 ### 文档对齐检查
 
-- [ ] 确认 LangChain 运行在 **Electron 主进程**（`apps/electron/src/main/`），不打包进渲染进程
-- [ ] 更新 [08-文件清单与PR拆分.md](./08-文件清单与PR拆分.md) 依赖列表
+- [x] LangChain 仅在 **Electron 主进程**
+- [x] [08-文件清单与PR拆分.md](./08-文件清单与PR拆分.md) 依赖列表已反映实际
+
+### 遗留
+
+- [ ] `zod` 锁定版本（当前 `^4.4.3`，文档建议不带 `^`）
 
 ## 验收
 
-- [ ] `pnpm install` 后 electron 包可 `require('langchain')` 无报错
-- [ ] 配置有效 Key 后，主进程冒烟脚本收到 LLM 回复
-- [ ] 无 Key 时明确 `E2804`，不崩溃
+- [x] `pnpm install` 后 electron 包可 `require('langchain')`
+- [x] 配置有效 Key 后，`test-llm-factory.js` 可收到回复
+- [x] 无 Key 时 `E2804`
 
 ## 与 Phase 3 的衔接
 

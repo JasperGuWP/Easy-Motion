@@ -75,6 +75,19 @@
     height: 0;
   }
 
+  /* Markdown 等：隐藏滚动条，保留 overflow 滚动（滚轮 / 触控板仍可用） */
+  .scrollbar-shadcn {
+    border-radius: var(--radius-control);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-shadcn::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
   /* 数字输入：隐藏原生步进按钮（Windows/Chromium 白底箭头与暗色主题不协调） */
   [data-slot="input"][type="number"] {
     -moz-appearance: textfield;

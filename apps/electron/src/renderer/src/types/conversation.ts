@@ -3,6 +3,7 @@ export type MessageRole = "user" | "assistant" | "system";
 export type AgentStatus =
   | "idle"
   | "parsing"
+  | "analyzing"
   | "generating"
   | "reviewing"
   | "error";
@@ -32,12 +33,18 @@ export interface Conversation {
   version: string;
   messages: Message[];
   lastAgentTaskId?: string;
+  /** 可撤销的 AI 修改对应的消息 ID；时间线快照存于 agent-undo-snapshot.json */
+  pendingAgentUndo?: {
+    messageId: string;
+  };
 }
 
 export interface AttachedImage {
   id: string;
   path: string;
+  relativePath?: string;
   name?: string;
+  previewUrl?: string;
 }
 
 export interface AgentTask {

@@ -1,6 +1,12 @@
 import type { Timeline } from "./timeline";
 import type { AppSettings, LlmProvider } from "./settings";
-import type { Conversation } from "./conversation";
+import type { Conversation, AttachedImage } from "./conversation";
+
+export interface PendingAgentUndoPayload {
+  messageId: string;
+  timeline: Timeline;
+  savedAt?: number;
+}
 
 export interface IpcError {
   message?: string;
@@ -23,6 +29,40 @@ export interface LlmChunkPayload {
   isDone: boolean;
 }
 
+export interface ConversationChunkPayload {
+  requestId: string;
+  chunk: string;
+  isDone: boolean;
+}
+
+export interface ConversationCompletePayload {
+  requestId: string;
+  reply?: string;
+  timelineUpdated?: boolean;
+  timeline?: Timeline;
+  previewReload?: boolean;
+  timelinePush?: boolean;
+  subprojectPath?: string;
+  changeSummary?: string;
+  changeLog?: unknown[];
+  cancelled?: boolean;
+  simplifiedMode?: boolean;
+  systemNotice?: string;
+}
+
+export interface ConversationStatusPayload {
+  requestId: string;
+  status: string;
+}
+
+export interface ProjectSummary {
+  id: string;
+  name: string;
+  path: string;
+  createdAt: number;
+  modifiedAt: number;
+}
+
 export interface EasyMotionApi {
   version: string;
   project: {
@@ -32,8 +72,9 @@ export interface EasyMotionApi {
     }) => Promise<IpcResult<{ path: string }>>;
     open: (path: string) => Promise<IpcResult<unknown>>;
     save: () => Promise<IpcResult<unknown>>;
-    listRecent: () => Promise<
-      IpcResult<{ name: string; path: string; modifiedAt?: number }[]>
+    listRecent: () => Promise<IpcResult<ProjectSummary[]>>;
+    listLocal: () => Promise<
+      IpcResult<{ scanRoot: string; projects: ProjectSummary[] }>
     >;
     delete: (path: string, options?: unknown) => Promise<IpcResult<unknown>>;
     getCurrent: () => Promise<
@@ -170,6 +211,7 @@ export interface EasyMotionApi {
         conversation: Conversation;
         subprojectPath?: string;
         subprojectId?: string;
+        pendingAgentUndo?: PendingAgentUndoPayload | null;
       }>
     >;
     save: (payload: {
@@ -185,6 +227,58 @@ export interface EasyMotionApi {
     }) => Promise<
       IpcResult<{ saved: boolean; conversation: Conversation }>
     >;
+    saveAgentUndo: (payload: {
+      subprojectId?: string;
+      subprojectPath?: string;
+      messageId: string;
+      timeline: Timeline;
+    }) => Promise<IpcResult<{ saved: boolean; messageId: string }>>;
+    clearAgentUndo: (payload?: {
+      subprojectId?: string;
+      subprojectPath?: string;
+    }) => Promise<IpcResult<{ cleared: boolean }>>;
+    pickAiRefs: (payload?: {
+      subprojectId?: string;
+      subprojectPath?: string;
+    }) => Promise<
+      IpcResult<{
+        images: Array<{
+          id: string;
+          path: string;
+          relativePath: string;
+          name: string;
+          previewUrl?: string;
+        }>;
+        max: number;
+      }>
+    >;
+    readAiRefPreview: (payload: {
+      path?: string;
+      relativePath?: string;
+      subprojectId?: string;
+      subprojectPath?: string;
+    }) => Promise<IpcResult<{ dataUrl: string }>>;
+    send: (payload: {
+      requestId?: string;
+      message: string;
+      messages?: LlmMessage[];
+      subprojectId?: string;
+      subprojectPath?: string;
+      selectedClipId?: string | null;
+      confirmOverwrite?: boolean;
+      attachedImages?: AttachedImage[];
+    }) => Promise<IpcResult<{ requestId: string }>>;
+    cancel: (payload: {
+      requestId: string;
+    }) => Promise<IpcResult<{ cancelled: boolean }>>;
+    onChunk: (callback: (data: ConversationChunkPayload) => void) => () => void;
+    onComplete: (
+      callback: (data: ConversationCompletePayload) => void
+    ) => () => void;
+    onError: (
+      callback: (data: { requestId: string; message: string }) => void
+    ) => () => void;
+    onStatus: (callback: (data: ConversationStatusPayload) => void) => () => void;
   };
 }
 

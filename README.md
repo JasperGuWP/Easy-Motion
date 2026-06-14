@@ -7,8 +7,8 @@ Monorepo（`apps/*` + `packages/*`），当前可运行范围：
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| Electron 主进程 | M1–M4 / **M5 进行中** | 项目 / 时间线 / 预览 / Generator、Remotion 导入与漂移同步、素材 IPC；**LLM 流式代理**（`main:llm:*`） |
-| 渲染进程 | M4 / **M5 进行中** | 时间线拖拽编辑、属性面板、素材库、自动预览；右侧 **AI 助手** Tab 支持 LLM 流式对话（Agent 改时间线见 [M5 计划](.local/m5-ai-agent/README.md)） |
+| Electron 主进程 | M1–M5 ✅ | 项目 / 时间线 / 预览 / Generator、Remotion 导入与漂移同步、素材 IPC；**LangChain Agent**（`conversation:send`） |
+| 渲染进程 | M4–M5 ✅ | 时间线拖拽编辑、属性面板、素材库、自动预览；右侧 **AI 助手** Tab（Agent 改时间线，见 [M5 计划](.local/m5-ai-agent/README.md)） |
 | Legacy UI | 保留 | `apps/electron/src/renderer/legacy/`，`--legacy-ui` 或 `pnpm dev:legacy` |
 | Python API | M0+ | FastAPI，`pnpm dev:all` 时一并启动（M5 Agent 将接入） |
 | 设计规范 | 文档 | [`docs/design-system/easymotion/MASTER.md`](docs/design-system/easymotion/MASTER.md) |

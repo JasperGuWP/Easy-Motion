@@ -178,6 +178,50 @@ function ensurePreviewSoloSupport(remotionDir) {
   }
 
   const libDir = path.join(remotionDir, "src", "lib");
+  const destFlatten = path.join(libDir, "flatten-clips-for-preview.ts");
+  const templateFlatten = path.join(templateSrc, "lib", "flatten-clips-for-preview.ts");
+  if (fs.existsSync(templateFlatten)) {
+    const needsFlattenFile =
+      !fs.existsSync(destFlatten) ||
+      !fs.readFileSync(destFlatten, "utf8").includes("flattenClipsForPreview");
+    if (needsFlattenFile) {
+      fs.mkdirSync(libDir, { recursive: true });
+      fs.copyFileSync(templateFlatten, destFlatten);
+      broadcastLog("已添加 flatten-clips-for-preview（时间线驱动预览）", "preview");
+      updated = true;
+    }
+  }
+
+  const destBgOverride = path.join(libDir, "background-style-override.ts");
+  const templateBgOverride = path.join(templateSrc, "lib", "background-style-override.ts");
+  if (fs.existsSync(templateBgOverride)) {
+    const needsBgOverride =
+      !fs.existsSync(destBgOverride) ||
+      !fs.readFileSync(destBgOverride, "utf8").includes("hasBackgroundStyleOverride");
+    if (needsBgOverride) {
+      fs.mkdirSync(libDir, { recursive: true });
+      fs.copyFileSync(templateBgOverride, destBgOverride);
+      broadcastLog("已添加 background-style-override（AI 背景色覆盖）", "preview");
+      updated = true;
+    }
+  }
+
+  const newsletterDir = path.join(remotionDir, "src", "components", "newsletter-design");
+  for (const file of ["NewsletterBackground.tsx", "GradientBackground.tsx"]) {
+    const dest = path.join(newsletterDir, file);
+    const template = path.join(templateSrc, "components", "newsletter-design", file);
+    if (!fs.existsSync(template)) continue;
+    const needsPatch =
+      !fs.existsSync(dest) ||
+      !fs.readFileSync(dest, "utf8").includes("hasBackgroundStyleOverride");
+    if (needsPatch) {
+      fs.mkdirSync(newsletterDir, { recursive: true });
+      fs.copyFileSync(template, dest);
+      broadcastLog(`已更新 ${file}（支持时间线背景色覆盖）`, "preview");
+      updated = true;
+    }
+  }
+
   const destLib = path.join(libDir, "preview-visibility.ts");
   const templateLib = path.join(templateSrc, "lib", "preview-visibility.ts");
   if (fs.existsSync(templateLib)) {
@@ -206,25 +250,66 @@ function ensurePreviewSoloSupport(remotionDir) {
   const templateMain = path.join(templateSrc, "components", "MainSequence.tsx");
   if (fs.existsSync(mainSeq) && fs.existsSync(templateMain)) {
     const content = fs.readFileSync(mainSeq, "utf8");
+    const needsTimelineDriven = !content.includes("flattenClipsForPreview");
     const needsSoloVisibility =
       content.includes("NewsletterBackground") &&
-      !content.includes("isClipVisibleInPreview");
+      !content.includes("isClipVisibleInPreview") &&
+      !content.includes("flattenClipsForPreview");
     const needsPlayerPropsFix =
       content.includes("isClipVisibleInPreview") &&
       content.includes("getInputProps");
     const needsClipTiming =
       content.includes("isClipVisibleInPreview") &&
       !content.includes("PreviewClipSequence");
-    if (needsSoloVisibility || needsPlayerPropsFix || needsClipTiming) {
+    const needsImageShapeLayers =
+      content.includes("flattenClipsForPreview") &&
+      !content.includes("ImageLayer");
+    const needsBackgroundStyleOverride =
+      content.includes("NewsletterBackground") &&
+      !content.includes("style={clip.style}");
+    if (
+      needsTimelineDriven ||
+      needsSoloVisibility ||
+      needsPlayerPropsFix ||
+      needsClipTiming ||
+      needsImageShapeLayers ||
+      needsBackgroundStyleOverride
+    ) {
       fs.copyFileSync(templateMain, mainSeq);
       broadcastLog(
-        needsClipTiming
-          ? "已更新 MainSequence（片段时长预览）"
-          : needsPlayerPropsFix
-            ? "已修复 MainSequence（Player 预览 props）"
-            : "已更新 MainSequence（独奏/可见性过滤）",
+        needsTimelineDriven
+          ? "已更新 MainSequence（时间线 JSON 驱动预览）"
+          : needsBackgroundStyleOverride
+            ? "已更新 MainSequence（背景色时间线覆盖）"
+            : needsImageShapeLayers
+              ? "已更新 MainSequence（image/shape 预览层）"
+              : needsClipTiming
+                ? "已更新 MainSequence（片段时长预览）"
+                : needsPlayerPropsFix
+                  ? "已修复 MainSequence（Player 预览 props）"
+                  : "已更新 MainSequence（独奏/可见性过滤）",
         "preview",
       );
+      updated = true;
+    }
+  }
+
+  const destResolveMedia = path.join(libDir, "resolve-clip-media-src.ts");
+  const templateResolveMedia = path.join(templateSrc, "lib", "resolve-clip-media-src.ts");
+  if (fs.existsSync(templateResolveMedia) && !fs.existsSync(destResolveMedia)) {
+    fs.mkdirSync(libDir, { recursive: true });
+    fs.copyFileSync(templateResolveMedia, destResolveMedia);
+    broadcastLog("已添加 resolve-clip-media-src（素材路径预览）", "preview");
+    updated = true;
+  }
+
+  const destShape = path.join(remotionDir, "src", "components", "layers", "ShapeLayer.tsx");
+  const templateShape = path.join(templateSrc, "components", "layers", "ShapeLayer.tsx");
+  if (fs.existsSync(templateShape) && fs.existsSync(destShape)) {
+    const shapeContent = fs.readFileSync(destShape, "utf8");
+    if (!shapeContent.includes("style?.background")) {
+      fs.copyFileSync(templateShape, destShape);
+      broadcastLog("已更新 ShapeLayer（CSS 渐变背景）", "preview");
       updated = true;
     }
   }
