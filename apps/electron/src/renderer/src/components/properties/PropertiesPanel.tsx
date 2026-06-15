@@ -260,6 +260,7 @@ function TextEditorPanel({
             onPatch={onPatch}
             mode="quick"
             excludePaths={["source.content"]}
+          />
           <ClipPropertyFields
             clipType="text"
             clip={clip}

@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("easyMotion", {
     getCurrent: () => invoke("main:project:getCurrent"),
     pickParentDirectory: () => invoke("main:project:pickParentDirectory"),
     pickProjectDirectory: () => invoke("main:project:pickProjectDirectory"),
+    prepareCreate: () => invoke("main:project:prepareCreate"),
   },
   timeline: {
     load: (payload) => invoke("main:timeline:load", payload),

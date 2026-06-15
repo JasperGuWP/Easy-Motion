@@ -29,6 +29,9 @@ export interface EasyMotionApi {
     >;
     pickParentDirectory: () => Promise<IpcResult<{ path: string }>>;
     pickProjectDirectory: () => Promise<IpcResult<{ path: string }>>;
+    prepareCreate: () => Promise<
+      IpcResult<{ parentPath: string; suggestedName: string }>
+    >;
   };
   timeline: {
     load: (payload?: { subprojectPath?: string }) => Promise<IpcResult<Timeline>>;

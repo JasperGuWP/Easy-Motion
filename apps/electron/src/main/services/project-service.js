@@ -47,6 +47,26 @@ function sanitizeName(name) {
   return name.replace(/[<>:"/\\|?*]/g, "_").trim() || "未命名项目";
 }
 
+/** 在 parentPath 下生成不冲突的项目文件夹名 */
+function suggestProjectName(parentPath, baseName = "未命名项目") {
+  const base = sanitizeName(baseName);
+  if (!fs.existsSync(path.join(parentPath, base))) return base;
+  for (let n = 2; n < 1000; n += 1) {
+    const candidate = `${base} ${n}`;
+    if (!fs.existsSync(path.join(parentPath, candidate))) return candidate;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+function prepareNewProject() {
+  const parentPath = getDefaultProjectsParentDir();
+  ensureDir(parentPath);
+  return {
+    parentPath,
+    suggestedName: suggestProjectName(parentPath),
+  };
+}
+
 function stampTemplateProject(projectRoot, config) {
   const now = Date.now();
   const projectPath = path.join(projectRoot, "project.json");
@@ -82,7 +102,7 @@ async function createProject(config) {
   const projectRoot = path.join(parentPath, name);
 
   if (fs.existsSync(projectRoot)) {
-    throw new Error("E2101: project directory already exists");
+    throw new Error("E2101: 该名称的项目已存在，请换一个名称");
   }
 
   const templateDir = path.join(getTemplatesDir(), "default-project");
@@ -185,4 +205,6 @@ module.exports = {
   listRecentProjects,
   deleteProject,
   getCurrentProject,
+  suggestProjectName,
+  prepareNewProject,
 };
