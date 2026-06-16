@@ -1,265 +1,233 @@
-const { AGENT_TOOLS_OPENAI } = require("@easymotion/shared");
-const { loadSettings, getApiKey } = require("./settings-service");
-const { resolveChatCompletionsUrl } = require("./llm-service");
-const {
-  AgentTimelineSession,
-  executeTool,
-  tryFastPath,
-} = require("./agent-tool-executor");
+const { randomUUID } = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const { runAgent } = require("../agent");
+const { formatChangeSummary } = require("../agent/timeline-context");
+const { findClipLocation } = require("../agent/timeline-ops");
+const { AgentState } = require("../agent/state");
+const timelineService = require("./timeline-service");
+const projectService = require("./project-service");
+const previewService = require("./preview-service");
+const conversationService = require("./conversation-service");
+const { formatConversationSendError } = require("./conversation-errors");
 
-const MAX_TOOL_ROUNDS = 6;
-const AGENT_LLM_TIMEOUT_MS = 45_000;
-const AGENT_LLM_MAX_RETRIES = 1;
+const activeRequests = new Map();
 
-function buildAgentSystemPrompt(timelineSummary) {
-  return `你是 Easy-Motion 的 AI 动画创作 Agent，通过工具修改用户的时间线（Remotion 项目）。
-
-规则：
-- 用户要求创建/修改动画时，必须调用工具，不要只口头描述
-- 创建标题文字：先 createTrack(type=text)，再 createClip 写入 source.content
-- 调整属性用 updateClip，路径如 style.fontSize、source.content、style.color
-- 「字体大一点」：先 queryElement 定位文字片段，再 updateClip 将 style.fontSize 乘以 1.2（当前值×1.2 取整）
-- 「字体小一点」：style.fontSize 乘以 0.8
-- 不确定目标片段时先 queryElement
-- 导入本地素材用 importAsset（传入绝对路径），再用 createClip 引用 assetId/publicPath
-- 完成后用简短中文告诉用户做了什么
-
-当前时间线摘要：
-${JSON.stringify(timelineSummary, null, 2)}`;
+function send(webContents, channel, payload) {
+  if (webContents.isDestroyed()) return;
+  webContents.send(channel, payload);
 }
 
-async function callLlmWithTools(messages, settings, apiKey, attempt = 0) {
-  const url = resolveChatCompletionsUrl(settings.llm?.baseUrl);
+function sendStatus(webContents, requestId, status) {
+  send(webContents, "renderer:conversation:status", { requestId, status });
+}
+
+function sendChunk(webContents, requestId, chunk, isDone = false) {
+  send(webContents, "renderer:conversation:chunk", { requestId, chunk, isDone });
+}
+
+function sendComplete(webContents, requestId, data) {
+  send(webContents, "renderer:conversation:complete", { requestId, ...data });
+}
+
+function sendError(webContents, requestId, message) {
+  send(webContents, "renderer:conversation:error", { requestId, message });
+}
+
+function resolveContext(payload) {
+  const current = projectService.getCurrentProject();
+  const projectPath = payload?.projectPath ?? current?.path;
+  if (!projectPath || !current?.data) {
+    throw new Error("E2105: no open project");
+  }
+
+  const subprojectPath = conversationService.resolveSubprojectPath(
+    current.data,
+    payload
+  );
+
+  const subprojectJsonPath = require("node:path").join(
+    projectPath,
+    subprojectPath,
+    "subproject.json"
+  );
+  const { readJsonFile } = require("./file-service");
+  const subproject = readJsonFile(subprojectJsonPath);
+
+  return {
+    projectPath,
+    subprojectPath,
+    subprojectName: subproject.name ?? "默认片段",
+    timeline: timelineService.loadTimeline(projectPath, subprojectPath),
+  };
+}
+
+function isTimelineDrivenPreview(remotionDir) {
+  const mainSeqPath = path.join(remotionDir, "src", "components", "MainSequence.tsx");
+  if (!fs.existsSync(mainSeqPath)) return false;
+  const content = fs.readFileSync(mainSeqPath, "utf8");
+  return content.includes("flattenClipsForPreview");
+}
+
+function applyAgentTimelinePreview(ctx, timeline) {
+  const remotionDir = previewService.getRemotionDir(
+    ctx.projectPath,
+    ctx.subprojectPath
+  );
+  const drift = timelineService.checkRemotionDrift(
+    ctx.projectPath,
+    ctx.subprojectPath
+  );
+  const timelineDriven =
+    drift.hasCustomRemotionCode || isTimelineDrivenPreview(remotionDir);
+
+  let previewReload = false;
+
+  if (!timelineDriven) {
+    timelineService.generateForSubproject(ctx.projectPath, ctx.subprojectPath);
+    previewService.ensurePreviewEntry(remotionDir);
+    previewReload = true;
+  }
+
+  const patched = previewService.ensurePreviewSoloSupport(remotionDir);
+  const syncResult = timelineService.syncPreviewManifest(
+    ctx.projectPath,
+    timeline,
+    ctx.subprojectPath
+  );
+
+  return {
+    previewReload: previewReload || patched,
+    // 时间线 JSON 驱动预览时必须推送 TIMELINE_UPDATE，仅靠 iframe 重载不够
+    timelinePush: timelineDriven || isTimelineDrivenPreview(remotionDir),
+    timeline: syncResult.timeline ?? timeline,
+  };
+}
+
+function resolveSelectedElement(timeline, selectedClipId) {
+  if (!selectedClipId) return null;
+  const located = findClipLocation(timeline.tracks, selectedClipId);
+  if (!located) return null;
+  return {
+    type: "clip",
+    id: selectedClipId,
+    clip: located.clip,
+  };
+}
+
+function resolveAttachedImagePaths(attachedImages = []) {
+  if (!Array.isArray(attachedImages)) return [];
+  return attachedImages
+    .map((item) => {
+      if (typeof item === "string") return item;
+      return item?.path || item?.relativePath || null;
+    })
+    .filter(Boolean);
+}
+
+function startConversationSend(webContents, payload) {
+  const requestId = payload?.requestId || randomUUID();
+  const input = String(payload?.message ?? payload?.input ?? "").trim();
+  const history = Array.isArray(payload?.messages) ? payload.messages : [];
+
+  if (!input) {
+    throw new Error("E2002: 消息不能为空");
+  }
+
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), AGENT_LLM_TIMEOUT_MS);
+  activeRequests.set(requestId, controller);
 
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: settings.llm?.model || "gpt-4o-mini",
-        messages,
-        tools: AGENT_TOOLS_OPENAI,
-        tool_choice: "auto",
-        stream: false,
-      }),
-      signal: controller.signal,
-    });
+  void (async () => {
+    try {
+      sendStatus(webContents, requestId, AgentState.PARSING);
+      const ctx = resolveContext(payload);
+      const selectedElement = resolveSelectedElement(
+        ctx.timeline,
+        payload?.selectedClipId
+      );
 
-    if (!response.ok) {
-      const body = await response.text();
-      let detail = body.slice(0, 200);
-      try {
-        detail = JSON.parse(body)?.error?.message ?? detail;
-      } catch {
-        // ignore
-      }
-      throw new Error(`E4011: LLM request failed (${response.status}): ${detail}`);
-    }
+      const result = await runAgent({
+        timeline: ctx.timeline,
+        subprojectName: ctx.subprojectName,
+        projectPath: ctx.projectPath,
+        subprojectPath: ctx.subprojectPath,
+        input,
+        history,
+        selectedElement,
+        confirmOverwrite: Boolean(payload?.confirmOverwrite),
+        imagePaths: resolveAttachedImagePaths(payload?.attachedImages),
+        signal: controller.signal,
+        onStatus: (status) => sendStatus(webContents, requestId, status),
+        onChunk: (chunk) => sendChunk(webContents, requestId, chunk, false),
+      });
 
-    return response.json();
-  } catch (error) {
-    const retriable =
-      error.name === "AbortError" ||
-      error.message?.includes("E4011") ||
-      error.message?.includes("fetch failed");
-
-    if (retriable && attempt < AGENT_LLM_MAX_RETRIES) {
-      return callLlmWithTools(messages, settings, apiKey, attempt + 1);
-    }
-
-    if (error.name === "AbortError") {
-      throw new Error("E4013: LLM request timed out");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function buildAgentMessages(conversationMessages, timelineSummary) {
-  const recent = (conversationMessages ?? [])
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .slice(-12);
-
-  return [
-    { role: "system", content: buildAgentSystemPrompt(timelineSummary) },
-    ...recent.map((m) => ({ role: m.role, content: m.content })),
-  ];
-}
-
-async function streamText(text, onDelta) {
-  for (const char of text) {
-    onDelta(char);
-  }
-}
-
-function formatFastPathReply(fast) {
-  if (fast.kind === "createTitle") {
-    return (
-      `已创建标题文字「${fast.title}」，并写入时间线。\n` +
-      `轨道 ID：${fast.trackId}\n片段 ID：${fast.clipId}\n\n请在预览中查看效果。`
-    );
-  }
-  if (fast.kind === "fontSize") {
-    return (
-      `已将文字字号从 ${fast.previousSize}px 调整为 ${fast.nextSize}px` +
-      `（${fast.direction === "up" ? "放大约 20%" : "缩小约 20%"}）。\n\n请在预览中查看效果。`
-    );
-  }
-  return "已完成时间线修改，请在预览中查看效果。";
-}
-
-async function runSimplifiedAgent(session, userMessage, onDelta) {
-  const fast = await tryFastPath(session, userMessage);
-  if (fast?.success) {
-    await session.commit();
-    const reply = `（简化模式）${formatFastPathReply(fast)}`;
-    await streamText(reply, onDelta);
-    return {
-      replyText: reply,
-      timelineUpdated: true,
-      simplifiedMode: true,
-      toolLog: [{ tool: fast.kind, success: true, fastPath: true }],
-    };
-  }
-
-  const reply =
-    "E4009: 已切换至简化模式。\n\n" +
-    "当前仅支持：\n" +
-    "• 「创建一个标题写着 Hello」\n" +
-    "• 「字体大一点」/「字体小一点」（需时间线上已有文字片段）\n\n" +
-    (fast?.error ? `原因：${fast.error}` : "请换用以上句式重试。");
-  await streamText(reply, onDelta);
-  return {
-    replyText: reply,
-    timelineUpdated: false,
-    simplifiedMode: true,
-    toolLog: [],
-  };
-}
-
-async function runFastPathIfMatched(session, userMessage, onDelta) {
-  const fast = await tryFastPath(session, userMessage);
-  if (!fast?.success) return null;
-
-  await session.commit();
-  const reply = formatFastPathReply(fast);
-  await streamText(reply, onDelta);
-  return {
-    replyText: reply,
-    timelineUpdated: true,
-    toolLog: [{ tool: fast.kind, success: true, fastPath: true }],
-  };
-}
-
-async function runAgentTurn({
-  projectRoot,
-  subprojectPath,
-  conversationMessages,
-  userMessage,
-  onDelta,
-}) {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error("E4010: LLM API key not configured");
-  }
-
-  const settings = loadSettings();
-  const session = new AgentTimelineSession(projectRoot, subprojectPath);
-  const toolLog = [];
-
-  const fastResult = await runFastPathIfMatched(session, userMessage, onDelta);
-  if (fastResult) return fastResult;
-
-  let messages = buildAgentMessages(conversationMessages, session.getSummary());
-  messages.push({ role: "user", content: userMessage });
-
-  let finalText = "";
-
-  try {
-    for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-      const data = await callLlmWithTools(messages, settings, apiKey);
-      const choice = data?.choices?.[0];
-      const msg = choice?.message;
-      if (!msg) {
-        throw new Error("E4000: Agent LLM returned empty message");
+      if (controller.signal.aborted) {
+        return;
       }
 
-      if (msg.tool_calls?.length) {
-        messages.push({
-          role: "assistant",
-          content: msg.content ?? "",
-          tool_calls: msg.tool_calls,
-        });
+      let previewReload = false;
+      let timelinePush = false;
+      let timeline = result.timeline;
 
-        for (const tc of msg.tool_calls) {
-          const name = tc.function?.name;
-          let args = {};
-          try {
-            args = JSON.parse(tc.function?.arguments || "{}");
-          } catch {
-            args = {};
-          }
+      if (result.timelineChanged) {
+        sendStatus(webContents, requestId, AgentState.EXECUTING);
+        await timelineService.saveTimeline(
+          ctx.projectPath,
+          timeline,
+          ctx.subprojectPath
+        );
 
-          const result = await executeTool(session, name, args);
-          toolLog.push({ tool: name, success: result.success, error: result.error });
-
-          messages.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: JSON.stringify(result),
-          });
+        if (controller.signal.aborted) {
+          return;
         }
 
-        messages[0] = {
-          role: "system",
-          content: buildAgentSystemPrompt(session.getSummary()),
-        };
-        continue;
+        const previewPlan = applyAgentTimelinePreview(ctx, timeline);
+        previewReload = previewPlan.previewReload;
+        timelinePush = previewPlan.timelinePush;
+        timeline = previewPlan.timeline ?? timeline;
       }
 
-      finalText = (msg.content || "").trim();
-      break;
+      sendChunk(webContents, requestId, "", true);
+      sendComplete(webContents, requestId, {
+        reply: result.reply,
+        timelineUpdated: result.timelineChanged,
+        timeline: result.timelineChanged ? timeline : undefined,
+        previewReload,
+        timelinePush,
+        subprojectPath: ctx.subprojectPath,
+        changeSummary: formatChangeSummary(result.changeLog),
+        changeLog: result.changeLog,
+        simplifiedMode: Boolean(result.simplifiedMode),
+        systemNotice: result.systemNotice ?? undefined,
+      });
+    } catch (error) {
+      if (error.name === "AbortError") {
+        sendChunk(webContents, requestId, "", true);
+        sendComplete(webContents, requestId, { cancelled: true });
+        sendStatus(webContents, requestId, AgentState.IDLE);
+        return;
+      }
+      const normalized = formatConversationSendError(error);
+      const message = normalized.message;
+      sendChunk(webContents, requestId, `\n\n[错误] ${message}`, true);
+      sendError(webContents, requestId, message);
+      sendStatus(webContents, requestId, AgentState.FAILED);
+    } finally {
+      activeRequests.delete(requestId);
     }
-  } catch (error) {
-    return runSimplifiedAgent(session, userMessage, onDelta);
-  }
+  })();
 
-  if (!finalText) {
-    finalText = "已完成工具调用。若预览未更新，请稍候或手动刷新时间线。";
-  }
-
-  const commitResult = await session.commit();
-  await streamText(finalText, onDelta);
-
-  return {
-    replyText: finalText,
-    timelineUpdated: Boolean(commitResult.committed),
-    toolLog,
-  };
+  return { requestId };
 }
 
-/**
- * 判断是否应走 Agent（含工具）而非纯聊天
- */
-function shouldUseAgent(userMessage) {
-  const text = String(userMessage ?? "").trim();
-  if (!text) return false;
-  const agentHints =
-    /创建|添加|做一个|标题|文字|字体|大一点|小一点|放大|缩小|删除|改成|修改|放到|轨道|片头|动画|hello|Hello|颜色|字号/i;
-  return agentHints.test(text);
+function cancelConversationSend(requestId) {
+  const controller = activeRequests.get(requestId);
+  if (!controller) return { cancelled: false };
+  controller.abort();
+  return { cancelled: true };
 }
 
 module.exports = {
-  runAgentTurn,
-  runSimplifiedAgent,
-  shouldUseAgent,
-  buildAgentSystemPrompt,
-  AGENT_LLM_TIMEOUT_MS,
-  AGENT_LLM_MAX_RETRIES,
+  startConversationSend,
+  cancelConversationSend,
 };

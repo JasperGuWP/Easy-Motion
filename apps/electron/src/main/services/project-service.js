@@ -178,6 +178,55 @@ function listRecentProjects() {
   return loadRecentList();
 }
 
+function readProjectSummary(projectPath) {
+  const projectJsonPath = path.join(projectPath, "project.json");
+  if (!fs.existsSync(projectJsonPath)) return null;
+  try {
+    const project = readJsonFile(projectJsonPath);
+    return {
+      id: project.subprojects?.[0]?.id ?? "unknown",
+      name: project.name || path.basename(projectPath),
+      path: projectPath,
+      createdAt: project.createdAt ?? 0,
+      modifiedAt: project.modifiedAt ?? 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function scanProjectsInDirectory(parentDir) {
+  if (!fs.existsSync(parentDir)) return [];
+  const entries = fs.readdirSync(parentDir, { withFileTypes: true });
+  const results = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const summary = readProjectSummary(path.join(parentDir, entry.name));
+    if (summary) results.push(summary);
+  }
+  return results;
+}
+
+function listLocalProjects() {
+  const merged = new Map();
+
+  for (const summary of scanProjectsInDirectory(getDefaultProjectsParentDir())) {
+    merged.set(summary.path, summary);
+  }
+
+  for (const recent of loadRecentList()) {
+    const summary = readProjectSummary(recent.path);
+    if (summary) merged.set(summary.path, summary);
+  }
+
+  return {
+    scanRoot: getDefaultProjectsParentDir(),
+    projects: Array.from(merged.values()).sort(
+      (a, b) => b.modifiedAt - a.modifiedAt
+    ),
+  };
+}
+
 async function deleteProject(projectPath, options = {}) {
   const keepOutput = Boolean(options.keepOutput);
   const list = loadRecentList().filter((p) => p.path !== projectPath);
@@ -203,6 +252,7 @@ module.exports = {
   openProject,
   saveCurrentProject,
   listRecentProjects,
+  listLocalProjects,
   deleteProject,
   getCurrentProject,
   suggestProjectName,

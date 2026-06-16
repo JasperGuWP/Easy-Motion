@@ -6,6 +6,7 @@ const {
   openProject,
   saveCurrentProject,
   listRecentProjects,
+  listLocalProjects,
   deleteProject,
 } = require("../src/main/services/project-service");
 
@@ -30,6 +31,11 @@ async function run() {
   const recentAfterCreate = listRecentProjects();
   if (!recentAfterCreate.some((p) => p.path === created.path)) {
     throw new Error("recent list missing created project");
+  }
+
+  const local = listLocalProjects();
+  if (!local.projects.some((p) => p.path === created.path)) {
+    throw new Error("local list missing created project");
   }
 
   const opened = await openProject(created.path);

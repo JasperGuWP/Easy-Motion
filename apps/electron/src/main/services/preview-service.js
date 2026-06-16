@@ -178,12 +178,71 @@ function ensurePreviewSoloSupport(remotionDir) {
   }
 
   const libDir = path.join(remotionDir, "src", "lib");
+  const destFlatten = path.join(libDir, "flatten-clips-for-preview.ts");
+  const templateFlatten = path.join(templateSrc, "lib", "flatten-clips-for-preview.ts");
+  if (fs.existsSync(templateFlatten)) {
+    const needsFlattenFile =
+      !fs.existsSync(destFlatten) ||
+      !fs.readFileSync(destFlatten, "utf8").includes("flattenClipsForPreview");
+    if (needsFlattenFile) {
+      fs.mkdirSync(libDir, { recursive: true });
+      fs.copyFileSync(templateFlatten, destFlatten);
+      broadcastLog("已添加 flatten-clips-for-preview（时间线驱动预览）", "preview");
+      updated = true;
+    }
+  }
+
+  const destBgOverride = path.join(libDir, "background-style-override.ts");
+  const templateBgOverride = path.join(templateSrc, "lib", "background-style-override.ts");
+  if (fs.existsSync(templateBgOverride)) {
+    const needsBgOverride =
+      !fs.existsSync(destBgOverride) ||
+      !fs.readFileSync(destBgOverride, "utf8").includes("hasBackgroundStyleOverride");
+    if (needsBgOverride) {
+      fs.mkdirSync(libDir, { recursive: true });
+      fs.copyFileSync(templateBgOverride, destBgOverride);
+      broadcastLog("已添加 background-style-override（AI 背景色覆盖）", "preview");
+      updated = true;
+    }
+  }
+
+  const newsletterDir = path.join(remotionDir, "src", "components", "newsletter-design");
+  for (const file of ["NewsletterBackground.tsx", "GradientBackground.tsx"]) {
+    const dest = path.join(newsletterDir, file);
+    const template = path.join(templateSrc, "components", "newsletter-design", file);
+    if (!fs.existsSync(template)) continue;
+    const needsPatch =
+      !fs.existsSync(dest) ||
+      !fs.readFileSync(dest, "utf8").includes("hasBackgroundStyleOverride");
+    if (needsPatch) {
+      fs.mkdirSync(newsletterDir, { recursive: true });
+      fs.copyFileSync(template, dest);
+      broadcastLog(`已更新 ${file}（支持时间线背景色覆盖）`, "preview");
+      updated = true;
+    }
+  }
+
   const destLib = path.join(libDir, "preview-visibility.ts");
   const templateLib = path.join(templateSrc, "lib", "preview-visibility.ts");
-  if (fs.existsSync(templateLib) && !fs.existsSync(destLib)) {
-    fs.mkdirSync(libDir, { recursive: true });
-    fs.copyFileSync(templateLib, destLib);
-    broadcastLog("已添加 preview-visibility（独奏预览）", "preview");
+  if (fs.existsSync(templateLib)) {
+    const needsTimingHelper =
+      !fs.existsSync(destLib) ||
+      !fs.readFileSync(destLib, "utf8").includes("getClipTimingForPreview");
+    if (needsTimingHelper) {
+      fs.mkdirSync(libDir, { recursive: true });
+      fs.copyFileSync(templateLib, destLib);
+      broadcastLog("已更新 preview-visibility（片段时长预览）", "preview");
+      updated = true;
+    }
+  }
+
+  const componentsDir = path.join(remotionDir, "src", "components");
+  const destClipSeq = path.join(componentsDir, "PreviewClipSequence.tsx");
+  const templateClipSeq = path.join(templateSrc, "components", "PreviewClipSequence.tsx");
+  if (fs.existsSync(templateClipSeq) && !fs.existsSync(destClipSeq)) {
+    fs.mkdirSync(componentsDir, { recursive: true });
+    fs.copyFileSync(templateClipSeq, destClipSeq);
+    broadcastLog("已添加 PreviewClipSequence（片段时长预览）", "preview");
     updated = true;
   }
 
@@ -191,25 +250,177 @@ function ensurePreviewSoloSupport(remotionDir) {
   const templateMain = path.join(templateSrc, "components", "MainSequence.tsx");
   if (fs.existsSync(mainSeq) && fs.existsSync(templateMain)) {
     const content = fs.readFileSync(mainSeq, "utf8");
+    const needsTimelineDriven = !content.includes("flattenClipsForPreview");
     const needsSoloVisibility =
       content.includes("NewsletterBackground") &&
-      !content.includes("isClipVisibleInPreview");
+      !content.includes("isClipVisibleInPreview") &&
+      !content.includes("flattenClipsForPreview");
     const needsPlayerPropsFix =
       content.includes("isClipVisibleInPreview") &&
       content.includes("getInputProps");
-    if (needsSoloVisibility || needsPlayerPropsFix) {
+    const needsClipTiming =
+      content.includes("isClipVisibleInPreview") &&
+      !content.includes("PreviewClipSequence");
+    const needsImageShapeLayers =
+      content.includes("flattenClipsForPreview") &&
+      !content.includes("ImageLayer");
+    const needsBackgroundStyleOverride =
+      content.includes("NewsletterBackground") &&
+      !content.includes("style={clip.style}");
+    if (
+      needsTimelineDriven ||
+      needsSoloVisibility ||
+      needsPlayerPropsFix ||
+      needsClipTiming ||
+      needsImageShapeLayers ||
+      needsBackgroundStyleOverride
+    ) {
       fs.copyFileSync(templateMain, mainSeq);
       broadcastLog(
-        needsPlayerPropsFix
-          ? "已修复 MainSequence（Player 预览 props）"
-          : "已更新 MainSequence（独奏/可见性过滤）",
+        needsTimelineDriven
+          ? "已更新 MainSequence（时间线 JSON 驱动预览）"
+          : needsBackgroundStyleOverride
+            ? "已更新 MainSequence（背景色时间线覆盖）"
+            : needsImageShapeLayers
+              ? "已更新 MainSequence（image/shape 预览层）"
+              : needsClipTiming
+                ? "已更新 MainSequence（片段时长预览）"
+                : needsPlayerPropsFix
+                  ? "已修复 MainSequence（Player 预览 props）"
+                  : "已更新 MainSequence（独奏/可见性过滤）",
         "preview",
       );
       updated = true;
     }
   }
 
+  const destResolveMedia = path.join(libDir, "resolve-clip-media-src.ts");
+  const templateResolveMedia = path.join(templateSrc, "lib", "resolve-clip-media-src.ts");
+  if (fs.existsSync(templateResolveMedia) && !fs.existsSync(destResolveMedia)) {
+    fs.mkdirSync(libDir, { recursive: true });
+    fs.copyFileSync(templateResolveMedia, destResolveMedia);
+    broadcastLog("已添加 resolve-clip-media-src（素材路径预览）", "preview");
+    updated = true;
+  }
+
+  const destShape = path.join(remotionDir, "src", "components", "layers", "ShapeLayer.tsx");
+  const templateShape = path.join(templateSrc, "components", "layers", "ShapeLayer.tsx");
+  if (fs.existsSync(templateShape) && fs.existsSync(destShape)) {
+    const shapeContent = fs.readFileSync(destShape, "utf8");
+    if (!shapeContent.includes("style?.background")) {
+      fs.copyFileSync(templateShape, destShape);
+      broadcastLog("已更新 ShapeLayer（CSS 渐变背景）", "preview");
+      updated = true;
+    }
+  }
+
   return updated;
+}
+
+const PREVIEW_CANVAS_BG = "#121212";
+const LEGACY_PREVIEW_BG_PATTERN = /#0[fF]0[fF]23|#05050a/gi;
+
+/** 将旧版紫调预览衬底同步为中性灰（preview.html / MainSequence / preview-entry） */
+function ensurePreviewCanvasTheme(remotionDir) {
+  let updated = false;
+
+  const templateRemotion = path.join(
+    getTemplatesDir(),
+    "default-project",
+    "subprojects",
+    "default",
+    "remotion",
+  );
+
+  const previewHtml = path.join(remotionDir, "preview.html");
+  if (fs.existsSync(previewHtml)) {
+    let content = fs.readFileSync(previewHtml, "utf8");
+    const before = content;
+    if (LEGACY_PREVIEW_BG_PATTERN.test(content)) {
+      content = content.replace(LEGACY_PREVIEW_BG_PATTERN, PREVIEW_CANVAS_BG);
+    }
+    const hasNeutralCanvas =
+      content.includes(PREVIEW_CANVAS_BG) || content.includes("oklch(0.085");
+    if (!hasNeutralCanvas) {
+      const templateHtml = path.join(templateRemotion, "preview.html");
+      if (fs.existsSync(templateHtml)) {
+        fs.copyFileSync(templateHtml, previewHtml);
+        broadcastLog("已同步 preview.html（预览舞台背景）", "preview");
+        updated = true;
+      }
+    } else if (content !== before) {
+      fs.writeFileSync(previewHtml, content, "utf8");
+      broadcastLog("已更新 preview.html（预览舞台背景）", "preview");
+      updated = true;
+    }
+  }
+
+  const mainSeq = path.join(remotionDir, "src", "components", "MainSequence.tsx");
+  if (fs.existsSync(mainSeq)) {
+    let content = fs.readFileSync(mainSeq, "utf8");
+    const before = content;
+    content = content.replace(
+      /backgroundColor:\s*["']#0[fF]0[fF]23["']/g,
+      `backgroundColor: "${PREVIEW_CANVAS_BG}"`,
+    );
+    if (content.includes("<AbsoluteFill>") && !content.includes("backgroundColor")) {
+      content = content.replace(
+        /<AbsoluteFill>/g,
+        `<AbsoluteFill style={{ backgroundColor: "${PREVIEW_CANVAS_BG}" }}>`,
+      );
+    }
+    if (content !== before) {
+      fs.writeFileSync(mainSeq, content, "utf8");
+      broadcastLog("已更新 MainSequence（预览舞台背景）", "preview");
+      updated = true;
+    }
+  }
+
+  const previewEntry = path.join(remotionDir, "src", "preview-entry.tsx");
+  if (fs.existsSync(previewEntry)) {
+    let content = fs.readFileSync(previewEntry, "utf8");
+    const before = content;
+    if (
+      !content.includes(`backgroundColor: "${PREVIEW_CANVAS_BG}"`) &&
+      !content.includes(`backgroundColor: '${PREVIEW_CANVAS_BG}'`)
+    ) {
+      content = content.replace(
+        /style=\{\{\s*\n(\s*)width: "100%",/,
+        `style={{\n$1backgroundColor: "${PREVIEW_CANVAS_BG}",\n$1width: "100%",`,
+      );
+    }
+    if (content !== before) {
+      fs.writeFileSync(previewEntry, content, "utf8");
+      broadcastLog("已更新 preview-entry（预览舞台背景）", "preview");
+      updated = true;
+    }
+  }
+
+  return updated;
+}
+
+/** 同步预览循环播放开关（SET_LOOP 消息） */
+function ensurePreviewLoopControl(remotionDir) {
+  const destEntry = path.join(remotionDir, "src", "preview-entry.tsx");
+  if (!fs.existsSync(destEntry)) return false;
+
+  const content = fs.readFileSync(destEntry, "utf8");
+  if (content.includes("SET_LOOP")) return false;
+
+  const templateEntry = path.join(
+    getTemplatesDir(),
+    "default-project",
+    "subprojects",
+    "default",
+    "remotion",
+    "src",
+    "preview-entry.tsx",
+  );
+  if (!fs.existsSync(templateEntry)) return false;
+
+  fs.copyFileSync(templateEntry, destEntry);
+  broadcastLog("已更新 preview-entry（循环播放开关）", "preview");
+  return true;
 }
 
 async function startPreview(projectRoot, subprojectPath = "subprojects/default") {
@@ -223,8 +434,10 @@ async function startPreview(projectRoot, subprojectPath = "subprojects/default")
   broadcastLog("正在准备 Remotion 预览环境…", "preview");
   ensurePreviewEntry(remotionDir);
   const soloSupportPatched = ensurePreviewSoloSupport(remotionDir);
+  const canvasThemePatched = ensurePreviewCanvasTheme(remotionDir);
+  const loopControlPatched = ensurePreviewLoopControl(remotionDir);
   let remotionFingerprint = null;
-  if (soloSupportPatched) {
+  if (soloSupportPatched || canvasThemePatched || loopControlPatched) {
     const refreshed = timelineService.refreshRemotionFingerprint(
       projectRoot,
       subprojectPath,

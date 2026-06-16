@@ -1,6 +1,8 @@
+import { PanelTabContent } from "@/components/common/PanelTabContent";
 import { PanelTabs } from "@/components/common/PanelTabs";
 import { AssetsPanel } from "@/components/assets/AssetsPanel";
 import { ProjectPanel } from "@/components/project/ProjectPanel";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useUiStore } from "@/stores/uiStore";
 import { PresetsPanel } from "@/components/presets/PresetsPanel";
 
@@ -14,13 +16,39 @@ export function LeftPanel() {
   const { leftTab, setLeftTab } = useUiStore();
 
   return (
-    <aside className="flex h-full min-w-0 flex-col border-r border-em-border bg-em-bg">
+    <aside className="flex h-full min-w-0 flex-col border-r border-border bg-background">
       <PanelTabs tabs={TABS} active={leftTab} onChange={setLeftTab} />
-      <div className="flex flex-1 flex-col overflow-auto p-3 text-sm text-em-muted">
-        {leftTab === "project" && <ProjectPanel />}
-        {leftTab === "assets" && <AssetsPanel />}
-        {leftTab === "presets" && <PresetsPanel />}
-      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <PanelTabContent tabKey={leftTab} className="p-3 text-sm text-muted-foreground">
+          {leftTab === "project" && <ProjectPanel />}
+          {leftTab === "assets" && <AssetsPanel />}
+          {leftTab === "presets" && (
+            <EmptyHint
+              icon={<LayoutTemplate className="h-10 w-10 text-border" />}
+              title="预设"
+              hint="浏览预设，快速开始"
+            />
+          )}
+        </PanelTabContent>
+      </ScrollArea>
     </aside>
+  );
+}
+
+function EmptyHint({
+  icon,
+  title,
+  hint,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  hint: string;
+}) {
+  return (
+    <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 text-center">
+      {icon}
+      <p className="text-foreground">{title}</p>
+      <p className="text-xs">{hint}</p>
+    </div>
   );
 }

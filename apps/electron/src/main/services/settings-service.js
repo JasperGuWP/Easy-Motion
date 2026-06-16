@@ -1,101 +1,151 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const { atomicWriteJson, readJsonFile, ensureDir } = require("./file-service");
 const { getConfigDir } = require("../utils/paths");
+const { atomicWriteJson, readJsonFile, ensureDir } = require("./file-service");
 
-const SETTINGS_FILE = "settings.json";
+const SETTINGS_VERSION = "1.0";
 
 const DEFAULT_SETTINGS = {
-  version: 1,
+  version: SETTINGS_VERSION,
   llm: {
-    provider: "openai",
-    model: "gpt-4o-mini",
-    baseUrl: "",
-    apiKeyConfigured: false,
+    provider: "anthropic",
+    baseUrl: "https://api.minimaxi.com/anthropic",
+    model: "MiniMax-M3",
+    maxTokens: 4096,
+    temperature: 0.7,
+    timeout: 60,
+    streamResponse: true,
   },
 };
 
+const LLM_PROVIDERS = new Set(["openai", "anthropic"]);
+
+let cachedSettings = null;
+
 function getSettingsPath() {
-  return path.join(getConfigDir(), SETTINGS_FILE);
+  return path.join(getConfigDir(), "settings.json");
 }
 
-function maskApiKey(key) {
-  if (!key || typeof key !== "string") return "";
-  if (key.length <= 8) return "********";
-  return `${key.slice(0, 4)}...${key.slice(-4)}`;
-}
-
-function loadSettings() {
-  const filePath = getSettingsPath();
-  if (!fs.existsSync(filePath)) {
-    return { ...DEFAULT_SETTINGS, llm: { ...DEFAULT_SETTINGS.llm } };
+function deepMerge(target, source) {
+  const next = { ...target };
+  for (const [key, value] of Object.entries(source)) {
+    if (
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      target[key] &&
+      typeof target[key] === "object" &&
+      !Array.isArray(target[key])
+    ) {
+      next[key] = deepMerge(target[key], value);
+    } else {
+      next[key] = value;
+    }
   }
+  return next;
+}
+
+function normalizeLlmSettings(llm = {}) {
+  const provider = LLM_PROVIDERS.has(llm.provider) ? llm.provider : "anthropic";
+  const maxTokens = Number(llm.maxTokens);
+  const temperature = Number(llm.temperature);
+  const timeout = Number(llm.timeout);
+
+  return {
+    provider,
+    baseUrl:
+      typeof llm.baseUrl === "string" && llm.baseUrl.trim()
+        ? llm.baseUrl.trim()
+        : DEFAULT_SETTINGS.llm.baseUrl,
+    model:
+      typeof llm.model === "string" && llm.model.trim()
+        ? llm.model.trim()
+        : DEFAULT_SETTINGS.llm.model,
+    maxTokens:
+      Number.isFinite(maxTokens) && maxTokens >= 256 && maxTokens <= 8192
+        ? maxTokens
+        : DEFAULT_SETTINGS.llm.maxTokens,
+    temperature:
+      Number.isFinite(temperature) && temperature >= 0 && temperature <= 2
+        ? temperature
+        : DEFAULT_SETTINGS.llm.temperature,
+    timeout:
+      Number.isFinite(timeout) && timeout >= 10 && timeout <= 300
+        ? timeout
+        : DEFAULT_SETTINGS.llm.timeout,
+    streamResponse: llm.streamResponse !== false,
+  };
+}
+
+function normalizeSettings(raw) {
+  const merged = deepMerge(DEFAULT_SETTINGS, raw && typeof raw === "object" ? raw : {});
+  return {
+    ...merged,
+    version: SETTINGS_VERSION,
+    llm: normalizeLlmSettings(merged.llm),
+  };
+}
+
+function loadSettingsFromDisk() {
+  const filePath = getSettingsPath();
+  ensureDir(getConfigDir());
+
+  if (!fs.existsSync(filePath)) {
+    return normalizeSettings({});
+  }
+
   try {
     const raw = readJsonFile(filePath);
-    return {
-      ...DEFAULT_SETTINGS,
-      ...raw,
-      llm: {
-        ...DEFAULT_SETTINGS.llm,
-        ...(raw.llm ?? {}),
-        apiKeyConfigured: Boolean(raw.llm?.apiKey),
-      },
-    };
+    return normalizeSettings(raw);
   } catch {
-    return { ...DEFAULT_SETTINGS, llm: { ...DEFAULT_SETTINGS.llm } };
+    throw new Error("E2002: settings.json 格式无效");
   }
 }
 
-function loadSettingsForRenderer() {
-  const settings = loadSettings();
-  const { apiKey, ...llmRest } = settings.llm ?? {};
-  return {
-    ...settings,
-    llm: {
-      ...llmRest,
-      apiKeyConfigured: Boolean(apiKey),
-      apiKeyHint: apiKey ? maskApiKey(apiKey) : null,
-    },
-  };
-}
-
-async function saveSettings(patch) {
-  const current = loadSettings();
-  const llmPatch = patch?.llm ?? {};
-
-  const next = {
-    version: current.version ?? DEFAULT_SETTINGS.version,
-    llm: {
-      provider: llmPatch.provider ?? current.llm?.provider ?? DEFAULT_SETTINGS.llm.provider,
-      model: llmPatch.model ?? current.llm?.model ?? DEFAULT_SETTINGS.llm.model,
-      baseUrl:
-        llmPatch.baseUrl !== undefined
-          ? String(llmPatch.baseUrl ?? "").trim()
-          : (current.llm?.baseUrl ?? ""),
-    },
-  };
-
-  if (llmPatch.apiKey === "") {
-    delete next.llm.apiKey;
-  } else if (typeof llmPatch.apiKey === "string" && llmPatch.apiKey.trim()) {
-    next.llm.apiKey = llmPatch.apiKey.trim();
-  } else if (current.llm?.apiKey) {
-    next.llm.apiKey = current.llm.apiKey;
+function getSettings(keys) {
+  if (!cachedSettings) {
+    cachedSettings = loadSettingsFromDisk();
   }
 
-  ensureDir(getConfigDir());
+  if (!Array.isArray(keys) || keys.length === 0) {
+    return cachedSettings;
+  }
+
+  const picked = {};
+  for (const key of keys) {
+    if (key in cachedSettings) {
+      picked[key] = cachedSettings[key];
+    }
+  }
+  return picked;
+}
+
+function getLlmSettings() {
+  return getSettings().llm;
+}
+
+async function updateSettings(partial) {
+  if (!partial || typeof partial !== "object") {
+    throw new Error("E2002: 无效的设置参数");
+  }
+
+  const current = getSettings();
+  const next = normalizeSettings(deepMerge(current, partial));
+  cachedSettings = next;
   await atomicWriteJson(getSettingsPath(), next);
-  return loadSettingsForRenderer();
+  return { updated: true, settings: next };
 }
 
-function getApiKey() {
-  const settings = loadSettings();
-  return settings.llm?.apiKey ?? null;
+function resetSettingsCache() {
+  cachedSettings = null;
 }
 
 module.exports = {
-  loadSettings,
-  loadSettingsForRenderer,
-  saveSettings,
-  getApiKey,
+  DEFAULT_SETTINGS,
+  LLM_PROVIDERS,
+  getSettings,
+  getLlmSettings,
+  updateSettings,
+  resetSettingsCache,
+  normalizeLlmSettings,
 };

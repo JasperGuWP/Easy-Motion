@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const { copyFile, ensureDir, readJsonFile, atomicWriteJson } = require("./file-service");
@@ -465,6 +466,110 @@ async function importAssetFiles(
   return { imported, errors, skipped, assets: listAssets(projectRoot) };
 }
 
+function guessExtFromUrl(urlString) {
+  try {
+    const pathname = new URL(urlString).pathname;
+    const ext = path.extname(pathname);
+    return ext || null;
+  } catch {
+    return null;
+  }
+}
+
+function guessExtFromContentType(contentType) {
+  const type = String(contentType ?? "").split(";")[0].trim().toLowerCase();
+  const map = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+    "image/svg+xml": ".svg",
+    "video/mp4": ".mp4",
+    "video/quicktime": ".mov",
+    "video/webm": ".webm",
+    "audio/mpeg": ".mp3",
+    "audio/wav": ".wav",
+    "audio/aac": ".aac",
+    "audio/mp4": ".m4a",
+  };
+  return map[type] ?? null;
+}
+
+async function downloadUrlToTemp(urlString) {
+  const response = await fetch(urlString);
+  if (!response.ok) {
+    throw new Error(`下载素材失败: HTTP ${response.status}`);
+  }
+
+  const ext =
+    guessExtFromUrl(urlString) ||
+    guessExtFromContentType(response.headers.get("content-type")) ||
+    ".bin";
+  const tempDir = path.join(os.tmpdir(), "easymotion-import");
+  ensureDir(tempDir);
+  const tempPath = path.join(tempDir, `${crypto.randomUUID()}${ext}`);
+  const buffer = Buffer.from(await response.arrayBuffer());
+  fs.writeFileSync(tempPath, buffer);
+  return tempPath;
+}
+
+async function resolveImportSourcePath(projectRoot, source) {
+  const trimmed = String(source ?? "").trim();
+  if (!trimmed) {
+    throw new Error("素材来源不能为空");
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return downloadUrlToTemp(trimmed);
+  }
+
+  if (fs.existsSync(trimmed)) {
+    return trimmed;
+  }
+
+  const projectRelative = path.join(projectRoot, trimmed);
+  if (fs.existsSync(projectRelative)) {
+    return projectRelative;
+  }
+
+  throw new Error(`无法解析素材来源: ${trimmed}`);
+}
+
+async function importAssetSource(
+  projectRoot,
+  { source, type, name },
+  options = {},
+) {
+  const filePath = await resolveImportSourcePath(projectRoot, source);
+  const detectedType = detectAssetType(filePath);
+  const assetType = type ?? detectedType;
+
+  if (!assetType || !ASSET_TYPES.includes(assetType)) {
+    throw new Error("不支持的素材类型");
+  }
+  if (detectedType && type && detectedType !== type) {
+    throw new Error(`素材类型不匹配：文件为 ${detectedType}，指定为 ${type}`);
+  }
+
+  const { imported, errors } = await importAssetFiles(projectRoot, [filePath], options);
+  if (!imported.length) {
+    throw new Error(errors[0]?.message ?? "素材导入失败");
+  }
+
+  const asset = { ...imported[0] };
+  if (name) {
+    asset.name = name;
+    const manifest = loadManifest(projectRoot);
+    const index = manifest.assets.findIndex((item) => item.id === asset.id);
+    if (index >= 0) {
+      manifest.assets[index].name = name;
+      await saveManifest(projectRoot, manifest);
+    }
+  }
+
+  return asset;
+}
+
 function guessMime(ext) {
   const map = {
     ".png": "image/png",
@@ -489,8 +594,7 @@ module.exports = {
   listAssets,
   getAssetById,
   importAssetFiles,
-  deleteAsset,
-  collectAssetReferences,
+  importAssetSource,
   detectAssetType,
   resolveAssetFileUrl,
   syncAllAssetsToRemotionPublic,

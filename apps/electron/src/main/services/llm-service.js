@@ -1,171 +1,331 @@
-const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
-const MAX_CONTEXT_MESSAGES = 20;
-const REQUEST_TIMEOUT_MS = 60_000;
+const { randomUUID } = require("node:crypto");
+const settingsService = require("./settings-service");
+const secretsService = require("./secrets-service");
 
-const DEFAULT_SYSTEM_PROMPT = `你是 Easy-Motion 的 AI 创作助手，帮助用户用自然语言设计和调整 Remotion 动画视频。
+const activeRequests = new Map();
 
-当前能力（M5 阶段）：
-- 理解用户的动画创意、节奏、文案与视觉风格需求
-- 给出清晰、可执行的分镜与参数建议
-- 用简体中文回复，简洁友好
+const SYSTEM_PROMPT =
+  "你是 Easy Motion 的 AI 动画助手。用户会用自然语言描述想要的 Remotion 动画效果。" +
+  "请用简洁、友好的中文回答，给出可执行的创意建议或步骤；若信息不足，先追问关键细节。";
 
-若用户明确要求创建/修改时间线（如「创建标题」「字体大一点」），应用会自动调用 Agent 工具处理；你只需在纯咨询类对话中给出专业建议。`;
+const PROVIDER_DEFAULTS = {
+  anthropic: { baseUrl: "https://api.anthropic.com" },
+  openai: { baseUrl: "https://api.openai.com/v1" },
+};
 
-function buildChatMessages(conversationMessages, systemPrompt = DEFAULT_SYSTEM_PROMPT) {
-  const recent = (conversationMessages ?? [])
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .slice(-MAX_CONTEXT_MESSAGES);
+function resolveLlmConfig(overrides = {}) {
+  const llm = settingsService.getLlmSettings();
+  const provider = overrides.provider || llm.provider || "anthropic";
+  const defaults = PROVIDER_DEFAULTS[provider] || PROVIDER_DEFAULTS.anthropic;
 
-  return [{ role: "system", content: systemPrompt }, ...recent.map((m) => ({
-    role: m.role,
-    content: m.content,
-  }))];
-}
+  let baseUrl =
+    overrides.baseUrl ||
+    llm.baseUrl ||
+    (provider === "anthropic"
+      ? process.env.ANTHROPIC_BASE_URL || process.env.LLM_BASE_URL
+      : process.env.OPENAI_BASE_URL || process.env.LLM_BASE_URL) ||
+    defaults.baseUrl;
 
-/**
- * 将用户填写的 Base URL 规范为 OpenAI 兼容的 chat/completions 完整地址。
- * 例如 https://api.deepseek.com → https://api.deepseek.com/v1/chat/completions
- */
-function resolveChatCompletionsUrl(baseUrl) {
-  const raw = (baseUrl || "").trim();
-  if (!raw) return OPENAI_CHAT_URL;
-
-  let url = raw.replace(/\/+$/, "");
-  if (url.endsWith("/chat/completions")) return url;
-
-  if (url.endsWith("/v1")) {
-    return `${url}/chat/completions`;
-  }
-
-  if (!url.includes("/chat/")) {
-    if (!url.endsWith("/v1")) {
-      url = `${url}/v1`;
+  let apiKey = overrides.apiKey || secretsService.getLlmApiKey(provider);
+  if (!apiKey) {
+    if (provider === "anthropic") {
+      apiKey = process.env.ANTHROPIC_API_KEY || process.env.LLM_API_KEY || "";
+    } else if (provider === "openai") {
+      apiKey = process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || "";
     }
-    return `${url}/chat/completions`;
   }
 
-  return url;
+  return {
+    provider,
+    baseUrl: String(baseUrl).replace(/\/$/, ""),
+    apiKey: apiKey || "",
+    model: overrides.model || llm.model,
+    maxTokens: overrides.maxTokens ?? llm.maxTokens,
+    temperature: overrides.temperature ?? llm.temperature,
+  };
 }
 
-function sanitizeApiError(body, status) {
-  if (!body) return status === 404 ? "接口地址或模型不存在 (404)" : "unknown error";
+function getLlmConfig(overrides) {
+  return resolveLlmConfig(overrides);
+}
+
+function assertLlmConfig(config) {
+  if (!config.apiKey) {
+    throw new Error(
+      "E2804: LLM API Key 未配置，请在 AI 助手设置中填写，或于开发环境配置 apps/electron/.env"
+    );
+  }
+  if (!config.baseUrl) {
+    throw new Error("E2800: LLM Base URL 未配置");
+  }
+}
+
+function sendChunk(webContents, requestId, chunk, isDone) {
+  if (webContents.isDestroyed()) return;
+  webContents.send("renderer:llm:chunk", { requestId, chunk, isDone });
+}
+
+function parseSseDataLine(line) {
+  const prefix = "data:";
+  if (!line.startsWith(prefix)) return null;
+  const payload = line.slice(prefix.length).trim();
+  if (!payload || payload === "[DONE]") return null;
   try {
-    const json = JSON.parse(body);
-    const msg = json?.error?.message ?? json?.message;
-    if (typeof msg === "string" && msg.length < 300) return msg;
+    return JSON.parse(payload);
   } catch {
-    // ignore
+    return null;
   }
-  const text = body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  if (status === 404) {
-    return text.slice(0, 120) || "接口地址或模型不存在 (404)";
-  }
-  return text.slice(0, 200) || "unknown error";
 }
 
-async function parseSSEStream(body, onDelta) {
-  if (!body?.getReader) {
-    throw new Error("E4012: LLM stream body unavailable");
+function extractTextDelta(event) {
+  if (!event || typeof event !== "object") return "";
+
+  if (event.type === "content_block_delta" && event.delta?.text) {
+    return event.delta.text;
+  }
+  if (event.type === "text_delta" && event.delta?.text) {
+    return event.delta.text;
+  }
+  if (event.choices?.[0]?.delta?.content) {
+    return event.choices[0].delta.content;
+  }
+  return "";
+}
+
+async function readSseStream(response, webContents, requestId) {
+  if (!response.body) {
+    throw new Error("E2810: LLM 流式响应中断");
   }
 
-  const reader = body.getReader();
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  let fullText = "";
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
+    const lines = buffer.split(/\r?\n/);
     buffer = lines.pop() ?? "";
 
     for (const line of lines) {
       const trimmed = line.trim();
-      if (!trimmed.startsWith("data:")) continue;
+      if (!trimmed) continue;
 
-      const data = trimmed.slice(5).trim();
-      if (!data || data === "[DONE]") continue;
+      const event = parseSseDataLine(trimmed);
+      if (!event) continue;
 
-      let json;
-      try {
-        json = JSON.parse(data);
-      } catch {
-        continue;
+      if (event.type === "error") {
+        throw new Error(event.error?.message || "E2800: LLM 服务返回错误");
       }
 
-      const delta = json?.choices?.[0]?.delta?.content;
-      if (typeof delta === "string" && delta.length > 0) {
-        fullText += delta;
-        onDelta(delta);
-      }
+      const text = extractTextDelta(event);
+      if (text) sendChunk(webContents, requestId, text, false);
     }
   }
 
-  return fullText;
+  sendChunk(webContents, requestId, "", true);
 }
 
-async function streamChatCompletion(options) {
-  const {
-    messages,
-    apiKey,
-    model,
-    baseUrl,
-    onDelta,
-    fetchImpl = globalThis.fetch,
-    timeoutMs = REQUEST_TIMEOUT_MS,
-  } = options;
+async function streamAnthropicChat({ webContents, requestId, messages, config, signal }) {
+  const url = `${config.baseUrl}/v1/messages`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": config.apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: config.maxTokens,
+      temperature: config.temperature,
+      stream: true,
+      system: SYSTEM_PROMPT,
+      messages: messages.map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: m.content,
+      })),
+    }),
+    signal,
+  });
 
-  if (!apiKey) {
-    throw new Error("E4010: LLM API key not configured");
-  }
-  if (!fetchImpl) {
-    throw new Error("E4011: fetch is not available in this runtime");
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("E2804: LLM API Key 无效或无权访问");
+    }
+    throw new Error(
+      `E2800: LLM 请求失败 (${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`
+    );
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  await readSseStream(response, webContents, requestId);
+}
+
+async function streamOpenAiChat({ webContents, requestId, messages, config, signal }) {
+  const url = `${config.baseUrl}/chat/completions`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model,
+      max_tokens: config.maxTokens,
+      temperature: config.temperature,
+      stream: true,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        ...messages.map((m) => ({
+          role: m.role === "assistant" ? "assistant" : "user",
+          content: m.content,
+        })),
+      ],
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    if (response.status === 401 || response.status === 403) {
+      throw new Error("E2804: LLM API Key 无效或无权访问");
+    }
+    throw new Error(
+      `E2800: LLM 请求失败 (${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`
+    );
+  }
+
+  await readSseStream(response, webContents, requestId);
+}
+
+async function validateLlmApiKey(overrides = {}) {
+  const config = resolveLlmConfig(overrides);
+  if (!config.apiKey) {
+    return { valid: false, error: "E2804: API Key 不能为空" };
+  }
+  if (!config.baseUrl) {
+    return { valid: false, error: "E2800: Base URL 未配置" };
+  }
 
   try {
-    const url = resolveChatCompletionsUrl(baseUrl);
-    const response = await fetchImpl(url, {
+    if (config.provider === "openai") {
+      const response = await fetch(`${config.baseUrl}/models`, {
+        headers: { authorization: `Bearer ${config.apiKey}` },
+      });
+      if (response.status === 401 || response.status === 403) {
+        return { valid: false, error: "E2804: LLM API Key 无效或无权访问" };
+      }
+      if (!response.ok) {
+        return { valid: false, error: `E2800: 验证失败 (${response.status})` };
+      }
+      return { valid: true };
+    }
+
+    const response = await fetch(`${config.baseUrl}/v1/messages`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+        "x-api-key": config.apiKey,
+        "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: model || "gpt-4o-mini",
-        messages,
-        stream: true,
+        model: config.model,
+        max_tokens: 1,
+        messages: [{ role: "user", content: "ping" }],
       }),
-      signal: controller.signal,
     });
 
+    if (response.status === 401 || response.status === 403) {
+      return { valid: false, error: "E2804: LLM API Key 无效或无权访问" };
+    }
     if (!response.ok) {
-      const body = await response.text();
-      throw new Error(
-        `E4011: LLM request failed (${response.status}): ${sanitizeApiError(body, response.status)}`,
-      );
+      const detail = await response.text().catch(() => "");
+      return {
+        valid: false,
+        error: `E2800: 验证失败 (${response.status})${detail ? `: ${detail.slice(0, 120)}` : ""}`,
+      };
     }
-
-    return await parseSSEStream(response.body, onDelta);
+    return { valid: true };
   } catch (error) {
-    if (error.name === "AbortError") {
-      throw new Error("E4013: LLM request timed out");
-    }
-    throw error;
-  } finally {
-    clearTimeout(timer);
+    return {
+      valid: false,
+      error: error.message || "E2800: 无法连接 LLM 服务",
+    };
   }
+}
+
+function startStream(webContents, payload) {
+  const requestId = payload?.requestId || randomUUID();
+  const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+
+  if (messages.length === 0) {
+    throw new Error("E2002: 消息不能为空");
+  }
+
+  const last = messages[messages.length - 1];
+  if (!last?.content?.trim()) {
+    throw new Error("E2002: 消息不能为空");
+  }
+
+  const config = resolveLlmConfig({
+    provider: payload?.provider,
+    model: payload?.model,
+    baseUrl: payload?.baseUrl,
+    temperature: payload?.temperature,
+    maxTokens: payload?.maxTokens,
+  });
+  assertLlmConfig(config);
+
+  const controller = new AbortController();
+  activeRequests.set(requestId, controller);
+
+  const streamFn =
+    config.provider === "openai" ? streamOpenAiChat : streamAnthropicChat;
+
+  void streamFn({
+    webContents,
+    requestId,
+    messages,
+    config,
+    signal: controller.signal,
+  })
+    .then(() => {
+      secretsService.touchLlmApiKey(config.provider);
+    })
+    .catch((error) => {
+      if (error.name === "AbortError") return;
+      const message = error.message || "E2800: LLM 服务未知错误";
+      sendChunk(webContents, requestId, `\n\n[错误] ${message}`, true);
+    })
+    .finally(() => {
+      activeRequests.delete(requestId);
+    });
+
+  return { requestId };
+}
+
+function cancelStream(requestId) {
+  const controller = activeRequests.get(requestId);
+  if (!controller) return { cancelled: false };
+  controller.abort();
+  activeRequests.delete(requestId);
+  return { cancelled: true };
+}
+
+function isLlmConfigured() {
+  const config = resolveLlmConfig();
+  return Boolean(config.apiKey);
 }
 
 module.exports = {
-  OPENAI_CHAT_URL,
-  DEFAULT_SYSTEM_PROMPT,
-  buildChatMessages,
-  resolveChatCompletionsUrl,
-  streamChatCompletion,
-  parseSSEStream,
+  getLlmConfig,
+  resolveLlmConfig,
+  assertLlmConfig,
+  validateLlmApiKey,
+  isLlmConfigured,
+  startStream,
+  cancelStream,
 };

@@ -1,14 +1,16 @@
 # EasyMotion
 
-> 日期：2026-06-07  
+> 更新：2026-06-14  
 > 用自然语言制作 Remotion 动画的桌面应用（Electron + React + Python）
+
+![EasyMotion 主界面：预览、时间线、属性面板与 AI 助手](docs/images/app-screenshot.png)
 
 Monorepo（`apps/*` + `packages/*`），当前可运行范围：
 
 | 模块 | 状态 | 说明 |
 |------|------|------|
-| Electron 主进程 | M1–M4 | 项目 / 时间线 / 预览 / Generator、Remotion 导入与漂移同步、素材 IPC |
-| 渲染进程 | M4 | 时间线拖拽编辑、属性面板、素材库、自动预览；下一步 M5 AI 面板 |
+| Electron 主进程 | M1–M5 ✅ | 项目 / 时间线 / 预览 / Generator、Remotion 导入与漂移同步、素材 IPC；**LangChain Agent**（`conversation:send`） |
+| 渲染进程 | M4–M5 ✅ | 时间线拖拽编辑、属性面板、素材库、自动预览；右侧 **AI 助手** Tab（Agent 改时间线，见 [M5 计划](.local/m5-ai-agent/README.md)） |
 | Legacy UI | 保留 | `apps/electron/src/renderer/legacy/`，`--legacy-ui` 或 `pnpm dev:legacy` |
 | Python API | M0+ | FastAPI，`pnpm dev:all` 时一并启动（M5 Agent 将接入） |
 | 设计规范 | 文档 | [`docs/design-system/easymotion/MASTER.md`](docs/design-system/easymotion/MASTER.md) |
@@ -33,6 +35,8 @@ pnpm dev          # Vite (127.0.0.1:5176) + Electron — 日常 UI 开发
 pnpm dev:all      # 上述 + Python（8000 被占用时自动试 8001–8019）
 ```
 
+**AI 助手（M5）**：可在应用内 **AI 助手 → 齿轮设置** 配置 LLM（Key 加密存于 `~/.easymotion/secrets.json`）。开发后备：复制 `apps/electron/.env.example` 为 `.env` 并填写 `ANTHROPIC_API_KEY`。
+
 | 命令 | 作用 |
 |------|------|
 | `pnpm dev:renderer` | 仅 Vite |
@@ -47,11 +51,12 @@ pnpm dev:all      # 上述 + Python（8000 被占用时自动试 8001–8019）
 ## 仓库结构（简）
 
 ```
-apps/electron/     # 主进程、preload、React 渲染进程、Remotion 模板
+apps/electron/     # 主进程、preload、React 渲染进程（shadcn/ui + Tailwind）、Remotion 模板
 apps/python/       # FastAPI
 packages/shared/   # 共享类型与 timeline 工具
 docs/requirements/ # 产品与技术需求
 docs/design-system/# 设计 Token（权威）
+.local/            # UI 迁移、主题焕新、M5 开发计划（见 .local/README.md）
 .vscode/           # 团队共享的 F5 调试配置（见 .gitignore 白名单）
 ```
 
@@ -93,8 +98,31 @@ pnpm install
 pnpm dev
 ```
 
+## 渲染进程 UI（shadcn/ui）
+
+组件位于 `apps/electron/src/renderer/src/components/ui/`，配置见 `apps/electron/components.json`。新增组件：
+
+```bash
+cd apps/electron
+npx shadcn@latest add <component>
+```
+
+主题 token 与 `em-*` 别名见 [`docs/design-system/easymotion/MASTER.md`](docs/design-system/easymotion/MASTER.md)；已安装列表见 [`docs/requirements/组件库清单.md`](docs/requirements/组件库清单.md)。
+
+## 团队开发笔记（`.local/`）
+
+`.local/` **已纳入版本库**（不在 `.gitignore`），记录 shadcn 迁移与主题焕新的过程文档，便于新成员对齐上下文：
+
+| 目录 | 内容 |
+|------|------|
+| [`.local/shadcn-migration/`](.local/shadcn-migration/) | 迁移原则、阶段清单、完成记录 |
+| [`.local/theme-refresh/`](.local/theme-refresh/) | 主题方案对比、token 草案、实施清单 |
+
+入口：[`.local/README.md`](.local/README.md)
+
 ## 协作者
 
 - 主文档入口：本 README + [`docs/requirements/开发者README.md`](docs/requirements/开发者README.md)
+- UI 背景笔记：[`.local/README.md`](.local/README.md)
 - 勿提交：`.env`、`node_modules/`、`.venv/`、构建产物；`.vscode` 仅提交 `launch.json` / `tasks.json` / `settings.json` / `extensions.json`
 - 可选提交：`.cursor/skills/`（本地 Agent 技能）；其余 `.cursor/` 状态已忽略

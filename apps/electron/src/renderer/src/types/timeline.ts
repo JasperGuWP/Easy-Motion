@@ -93,6 +93,7 @@ export interface Clip {
   startInFrames: number;
   durationInFrames: number;
   lastModifiedBy?: LastModifiedBy;
+  lastModifiedAt?: number;
   source?: Record<string, unknown>;
   transform?: Record<string, unknown>;
   style?: Record<string, unknown>;

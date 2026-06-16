@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import { FileUp, Film, Image, Loader2, Music, Search, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef } from "react";
+import { FileUp, Film, Image, Loader2, Music } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatAssetMeta } from "@/lib/asset/formatAssetMeta";
 import { setAssetDragData } from "@/lib/timeline/assetDrag";
@@ -35,6 +37,12 @@ export function AssetsPanel() {
   const fps = useTimelineStore((s) => s.timeline?.fps ?? 30);
   const [query, setQuery] = useState("");
   const dropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error) {
+      toast.error("素材导入失败", { description: error });
+    }
+  }, [error]);
 
   const importFromFileList = useCallback(
     async (files: FileList | File[]) => {
@@ -93,17 +101,19 @@ export function AssetsPanel() {
           e.dataTransfer.dropEffect = "copy";
         }}
         onDrop={onDrop}
-        className="rounded-md border border-dashed border-em-border bg-em-surface/50 p-4 text-center"
+        className="rounded-md border border-dashed border-border bg-card/50 p-4 text-center"
       >
-        <p className="text-xs text-em-muted">拖拽文件到此处导入</p>
-        <button
+        <p className="text-xs text-muted-foreground">拖拽文件到此处导入</p>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           disabled={isImporting}
+          className="mt-2 gap-1.5 text-xs"
           onClick={() => {
             clearError();
             void pickAndImport();
           }}
-          className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-sm border border-em-border bg-em-elevated px-3 py-1.5 text-xs text-em-text transition-colors duration-150 ease-out hover:bg-em-surface disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isImporting ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -111,7 +121,7 @@ export function AssetsPanel() {
             <FileUp className="h-3.5 w-3.5" />
           )}
           选择文件…
-        </button>
+        </Button>
       </div>
 
       {assets.length > 0 && (
@@ -145,47 +155,19 @@ export function AssetsPanel() {
       )}
 
       {error && (
-        <p className="text-xs text-em-error" role="alert">
+        <p className="text-xs text-destructive" role="alert">
           {error}
         </p>
       )}
 
       {isLoading ? (
-        <p className="text-xs text-em-muted">加载素材…</p>
+        <p className="text-xs text-muted-foreground">加载素材…</p>
       ) : assets.length === 0 ? (
-        <p className="text-xs text-em-muted">暂无素材。导入后可拖到时间线。</p>
-      ) : grouped.length === 0 ? (
-        <p className="text-xs text-em-muted">没有匹配的素材。</p>
+        <p className="text-xs text-muted-foreground">暂无素材。导入后可拖到时间线。</p>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
-          {grouped.map((group) => (
-            <section key={group.type}>
-              <h3 className="mb-1 px-0.5 text-[10px] font-medium uppercase tracking-wide text-em-muted">
-                {group.label} ({group.items.length})
-              </h3>
-              <ul className="flex flex-col gap-1">
-                {group.items.map((asset) => (
-                  <AssetRow
-                    key={asset.id}
-                    asset={asset}
-                    fps={fps}
-                    onDelete={async () => {
-                      clearError();
-                      const result = await deleteAsset(asset.id, "soft");
-                      if (!result) return;
-                      if (result.blocked && result.refs?.length) {
-                        const ok = window.confirm(
-                          `素材「${asset.name}」被 ${result.refs.length} 个时间线片段引用。\n\n删除素材并移除这些片段？`,
-                        );
-                        if (ok) {
-                          await deleteAsset(asset.id, "removeClips");
-                        }
-                      }
-                    }}
-                  />
-                ))}
-              </ul>
-            </section>
+        <ul className="flex flex-col gap-1">
+          {assets.map((asset) => (
+            <AssetRow key={asset.id} asset={asset} />
           ))}
         </div>
       )}
@@ -241,32 +223,16 @@ function AssetRow({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className={cn(
-        "group relative flex cursor-grab items-center gap-2 rounded-md border border-em-border bg-em-surface px-2 py-2 text-xs text-em-text",
-        "transition-colors duration-150 ease-out hover:border-em-teal/40 hover:bg-em-elevated active:cursor-grabbing",
+        "flex cursor-grab items-center gap-2 rounded-md border border-border bg-card px-2 py-2 text-xs text-foreground",
+        "transition-colors duration-150 ease-out hover:border-em-teal/40 hover:bg-accent active:cursor-grabbing",
       )}
       title="拖到时间线创建片段"
     >
       <span className="text-em-teal">{TYPE_ICONS[asset.type]}</span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate">{asset.name}</p>
-        <p className="truncate font-mono text-[10px] text-em-muted">{meta}</p>
-      </div>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        className="shrink-0 rounded p-0.5 text-em-muted opacity-0 transition-opacity duration-150 hover:text-em-error group-hover:opacity-100"
-        title="删除素材"
-        aria-label={`删除 ${asset.name}`}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
-
-      {showPreview && previewUrl && (
-        <AssetHoverPreview asset={asset} previewUrl={previewUrl} />
-      )}
+      <span className="min-w-0 flex-1 truncate">{asset.name}</span>
+      <span className="shrink-0 font-mono text-[10px] uppercase text-muted-foreground">
+        {asset.type}
+      </span>
     </li>
   );
 }

@@ -43,6 +43,7 @@ interface TimelineBodyProps {
   selectedClipId: string | null;
   selectedMarkerId: string | null;
   onSelectClip: (clipId: string) => void;
+  onPointerDownCapture?: React.PointerEventHandler<HTMLDivElement>;
 }
 
 export function TimelineBody({
@@ -53,6 +54,7 @@ export function TimelineBody({
   selectedClipId,
   selectedMarkerId,
   onSelectClip,
+  onPointerDownCapture,
 }: TimelineBodyProps) {
   const wheelRootRef = useRef<HTMLDivElement>(null);
   const rulerScrollRef = useRef<HTMLDivElement>(null);
@@ -132,7 +134,7 @@ export function TimelineBody({
 
       const move = (ev: PointerEvent) => {
         const frame = frameFromPointer(ev.clientX, container, pxPerFrame, 0);
-        handleSeek(frame);
+        seekFrame(frame, { altKeyHeld: ev.altKey });
       };
 
       const up = () => {
@@ -142,9 +144,11 @@ export function TimelineBody({
 
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
-      handleSeek(frameFromPointer(e.clientX, container, pxPerFrame, 0));
+      seekFrame(frameFromPointer(e.clientX, container, pxPerFrame, 0), {
+        altKeyHeld: e.altKey,
+      });
     },
-    [handleSeek, pxPerFrame],
+    [seekFrame, pxPerFrame],
   );
 
   useEffect(() => {
@@ -245,13 +249,17 @@ export function TimelineBody({
   );
 
   return (
-    <div ref={wheelRootRef} className="flex min-h-0 flex-1 overflow-hidden">
+    <div
+      ref={wheelRootRef}
+      className="flex min-h-0 flex-1 overflow-hidden"
+      onPointerDownCapture={onPointerDownCapture}
+    >
       <div
-        className="flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-em-border bg-em-bg"
+        className="flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-border bg-background"
         style={{ width: TRACK_HEADER_WIDTH }}
       >
         <div
-          className="shrink-0 border-b border-r border-em-border bg-em-surface/50"
+          className="shrink-0 border-b border-r border-border bg-muted/30"
           style={{ height: RULER_HEIGHT }}
         />
         <div
@@ -270,7 +278,7 @@ export function TimelineBody({
               depth={row.depth}
               parentGroup={row.parentGroup}
               isGroupHeader={row.isGroupHeader}
-              className="border-b border-em-border"
+              className="border-b border-border"
               selected={selectedTrackId === row.track.id || selectedTrackId === row.parentGroup?.id}
               isDragging={trackReorderPreview?.trackId === row.track.id}
               showDropLineAbove={
@@ -419,6 +427,8 @@ function TrackRow({
     dragPreview !== null &&
     dragPreview.targetTrackId === track.id &&
     dragPreview.sourceTrackId !== track.id;
+  const hasSelectedClip =
+    !isGroupHeader && track.clips.some((clip) => clip.id === selectedClipId);
 
   return (
     <div
@@ -429,6 +439,7 @@ function TrackRow({
         locked && "bg-em-surface/20",
         isGroupHeader && "bg-em-surface/10",
         isDropTarget && "bg-em-teal/5",
+        hasSelectedClip && "bg-primary/[0.07]",
       )}
       style={{ height: TRACK_ROW_HEIGHT }}
     >
