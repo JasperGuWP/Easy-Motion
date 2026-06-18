@@ -930,58 +930,60 @@ export const useTimelineStore = create<TimelineState>((set, get) => {
       let placedClipId: string | null = null;
       let placedTrackId: string | null = null;
 
-      runMutation(
-        (t) => {
-          let working = t;
-          if (placeChoice === "extend") {
-            const desired = getAssetDesiredDurationFrames(
-              asset,
-              working,
-              startInFrames,
-            );
-            const extendTo = computeExtendTargetFrames(
-              working,
-              startInFrames,
-              desired,
-            );
-            working = {
-              ...working,
-              durationInFrames: Math.max(working.durationInFrames, extendTo),
-            };
-          }
+      try {
+        runMutation(
+          (t) => {
+            let working = t;
+            if (placeChoice === "extend") {
+              const desired = getAssetDesiredDurationFrames(
+                asset,
+                working,
+                startInFrames,
+              );
+              const extendTo = computeExtendTargetFrames(
+                working,
+                startInFrames,
+                desired,
+              );
+              working = {
+                ...working,
+                durationInFrames: Math.max(working.durationInFrames, extendTo),
+              };
+            }
 
-          const clipDurationFrames =
-            placeChoice === "fit"
-              ? undefined
-              : resolveClipDurationFrames(
-                  placeChoice,
-                  asset,
-                  working,
-                  startInFrames,
-                );
+            const clipDurationFrames =
+              placeChoice === "fit"
+                ? undefined
+                : resolveClipDurationFrames(
+                    placeChoice,
+                    asset,
+                    working,
+                    startInFrames,
+                  );
 
-          const result = placeAssetOnTimeline(working, asset, {
-            startInFrames,
-            trackId,
-            clipDurationFrames,
-            snap: {
-              ...snap,
-              timeline: working,
-            },
+            const result = placeAssetOnTimeline(working, asset, {
+              startInFrames,
+              trackId,
+              clipDurationFrames,
+              snap: {
+                ...snap,
+                timeline: working,
+              },
+            });
+
+            placedClipId = result.clipId;
+            placedTrackId = result.trackId;
+            return result.timeline;
+          },
+          { generate: "immediate" },
+        );
+
+        if (placedClipId && placedTrackId) {
+          set({
+            selectedClipId: placedClipId,
+            selectedTrackId: placedTrackId,
           });
-
-          placedClipId = result.clipId;
-          placedTrackId = result.trackId;
-          return result.timeline;
-        },
-        { generate: "immediate" },
-      );
-
-      if (placedClipId && placedTrackId) {
-        set({
-          selectedClipId: placedClipId,
-          selectedTrackId: placedTrackId,
-        });
+        }
       } catch (err) {
         const message =
           err instanceof TimelineValidationError || err instanceof Error

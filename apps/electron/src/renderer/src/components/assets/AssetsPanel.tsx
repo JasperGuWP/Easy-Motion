@@ -169,7 +169,7 @@ export function AssetsPanel() {
           {assets.map((asset) => (
             <AssetRow key={asset.id} asset={asset} />
           ))}
-        </div>
+        </ul>
       )}
     </div>
   );
