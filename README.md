@@ -3,7 +3,7 @@
 > 更新：2026-06-20  
 > 用自然语言制作 Remotion 动画的桌面应用（Electron + React + Python）
 
-![EasyMotion 主界面：折线图预设、属性参数编辑、取色器与时间线](docs/images/app-screenshot.png)
+![EasyMotion 主界面：预设库、折线图预览、参数取色器与时间线编辑](docs/images/app-screenshot.png)
 
 Monorepo（`apps/*` + `packages/*`），当前可运行范围：
 
