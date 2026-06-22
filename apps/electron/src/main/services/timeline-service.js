@@ -11,6 +11,7 @@ const {
   getRemotionSrcDir,
   prepareRemotionForNativeSync,
   detectCustomRemotionCode,
+  isTimelineDrivenPreview,
 } = require("./remotion-project");
 
 function getSubprojectDir(projectRoot, subprojectRelativePath = "subprojects/default") {
@@ -128,6 +129,10 @@ function generateForSubproject(
   }
   const { syncAllAssetsToRemotionPublic } = require("./asset-service");
   syncAllAssetsToRemotionPublic(projectRoot, subprojectRelativePath);
+  const { ensurePreviewPlayheadPreserve } = require("./preview-service");
+  ensurePreviewPlayheadPreserve(
+    getRemotionDir(projectRoot, subprojectRelativePath),
+  );
   const result = generateRemotionCode({ remotionSrcDir, timeline });
   const { fingerprint } = fingerprintRemotionSrc(remotionSrcDir);
   timeline.remotionFingerprint = fingerprint;
@@ -154,6 +159,7 @@ function checkRemotionDrift(
   const stored = timeline.remotionFingerprint ?? null;
   const drifted = Boolean(stored && stored !== fingerprint);
   const customRemotion = detectCustomRemotionCode(remotionSrcDir);
+  const timelineDrivenPreview = isTimelineDrivenPreview(remotionSrcDir);
 
   return {
     drifted,
@@ -161,9 +167,12 @@ function checkRemotionDrift(
     storedFingerprint: stored,
     fileCount,
     tracksEmpty: timeline.tracks.length === 0,
-    suggestSync: drifted || (timeline.tracks.length === 0 && fileCount > 0),
+    suggestSync:
+      !timelineDrivenPreview &&
+      (drifted || (timeline.tracks.length === 0 && fileCount > 0)),
     hasCustomRemotionCode: customRemotion.custom,
     customRemotionReason: customRemotion.reason,
+    timelineDrivenPreview,
   };
 }
 

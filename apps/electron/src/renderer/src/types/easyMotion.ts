@@ -110,6 +110,7 @@ export interface EasyMotionApi {
         storedFingerprint?: string | null;
         hasCustomRemotionCode?: boolean;
         customRemotionReason?: string | null;
+        timelineDrivenPreview?: boolean;
       }>
     >;
     syncPreviewManifest: (payload: {
@@ -372,6 +373,7 @@ export interface EasyMotionApi {
       subprojectId?: string;
       subprojectPath?: string;
       selectedClipId?: string | null;
+      currentFrame?: number;
       confirmOverwrite?: boolean;
       attachedImages?: AttachedImage[];
     }) => Promise<IpcResult<{ requestId: string }>>;
